@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { UrlController } from "./controller/url.controller";
+import { UrlController } from "./controllers/url.controller";
 
 export class AppRoutes {
   static get routes(): Router {

@@ -1,9 +1,14 @@
 import type { Request, Response } from "express";
 import { prisma } from "../data/postgres";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
+import { UrlService } from "../services/url.service";
 
 export class UrlController {
-  constructor() {}
+  private urlService: UrlService;
+
+  constructor() {
+    this.urlService = new UrlService();
+  }
 
   public getUrl = async (req: Request, res: Response) => {
     const shortUrl = req.params.shortUrl;
@@ -11,11 +16,11 @@ export class UrlController {
     if (typeof shortUrl !== "string")
       return res.status(400).json({ error: "Wrong Short Url" });
 
-    const url = await prisma.url.findFirst({
-      where: { short_url: shortUrl },
-    });
+    const url = await this.urlService.getLongUrl(shortUrl);
 
-    url
+    console.log(url?.long_url);
+
+    return url
       ? res.status(302).redirect(url.long_url)
       : res.status(404).json({ error: `Url ${shortUrl} not found` });
   };
@@ -24,9 +29,14 @@ export class UrlController {
     const [error, createUrlDto] = CreateUrlDto.create(req.body);
     if (error) return res.status(400).json({ error });
 
-    const url = await prisma.url.create({
-      data: createUrlDto!,
-    });
-    return res.json(url);
+    const url = await this.urlService.createShortUrl(createUrlDto!.long_url);
+    return url
+      ? res.status(201).json({
+          originalUrl: url.long_url,
+          shortUrl: url.short_url,
+        })
+      : res.status(500).json({
+          error: "Something went wrong creating the url",
+        });
   };
 }
