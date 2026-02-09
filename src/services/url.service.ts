@@ -1,3 +1,4 @@
+import type { PrismaClient } from "@prisma/client/extension";
 import { encodeBase62 } from "../config/encode";
 import { prisma } from "../data/postgres";
 
@@ -5,9 +6,14 @@ export class UrlService {
   constructor() {}
 
   public async getLongUrl(shortUrl: string) {
-    return await prisma.url.findFirst({
-      where: { short_url: shortUrl },
-    });
+    try {
+      return await prisma.url.update({
+        where: { short_url: shortUrl },
+        data: { counter: { increment: 1 } },
+      });
+    } catch (error) {
+      return null;
+    }
   }
 
   public async createShortUrl(longUrl: string) {

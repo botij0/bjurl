@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
-import { prisma } from "../data/postgres";
-import { CreateUrlDto } from "../data/dtos/create-url.dto";
+
 import { UrlService } from "../services/url.service";
+import { CreateUrlDto } from "../data/dtos/create-url.dto";
 
 export class UrlController {
   private urlService: UrlService;
