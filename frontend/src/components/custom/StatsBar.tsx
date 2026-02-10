@@ -1,10 +1,13 @@
-const stats = [
-  { label: "Links Shortened", value: "2.4M+" },
-  { label: "Clicks Tracked", value: "18B+" },
-  { label: "Uptime", value: "99.9%" },
-];
+import { useEffect, useState } from "react";
+import { getStats } from "@/actions/get-stats.action";
 
 export const StatsBar = () => {
+  const [stats, setStats] = useState<{ label: string; value: string }[]>([]);
+
+  useEffect(() => {
+    getStats().then((data) => setStats(data));
+  }, []);
+
   return (
     <div className="flex items-center justify-center gap-12 mt-16">
       {stats.map((stat) => (
