@@ -1,6 +1,7 @@
 import { use } from 'react'
-import { Button } from '../ui/button'
 import { Sun } from 'lucide-react'
+
+import { Button } from '../ui/button'
 import { ThemeContext } from '@/context/ThemeContext'
 
 export default function ThemeToggle() {

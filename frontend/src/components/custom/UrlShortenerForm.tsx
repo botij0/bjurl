@@ -1,9 +1,11 @@
-import { useRef, useState, type KeyboardEvent } from "react";
+import { toast } from "sonner";
 import { Link2, ArrowRight, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRef, useState, type KeyboardEvent } from "react";
+
 import { Input } from "@/components/ui/input";
-import { ShortenedResult } from "./ShortenedResult";
+import { Button } from "@/components/ui/button";
 import { createShortUrl } from "@/actions/create-short-url.action";
+import { ShortenedResult } from "./ShortenedResult";
 
 
 export const UrlShortenerForm = () => {
@@ -26,10 +28,13 @@ export const UrlShortenerForm = () => {
     // Todo verify that match an url pattern.
 
     const urlResponse = await createShortUrl(url.trim());
-    if (urlResponse) {
-      setShortUrl(`${import.meta.env.VITE_API_URL}/${urlResponse.shortUrl}`);
-      setOriginalUrl(urlResponse.originalUrl);
+    if (!urlResponse) {
+      toast.error("Something went wrong, please try again", { position: "top-center" })
+      setLoading(false)
+      return
     }
+    setShortUrl(`${import.meta.env.VITE_API_URL}/${urlResponse.shortUrl}`);
+    setOriginalUrl(urlResponse.originalUrl);
     setLoading(false)
   };
 

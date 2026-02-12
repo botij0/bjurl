@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import { getStats } from "@/actions/get-stats.action";
 import type { Stats } from "@/interfaces/stats.interface";
 
