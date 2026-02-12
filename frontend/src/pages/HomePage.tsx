@@ -6,7 +6,7 @@ import { UrlShortenerForm } from "@/components/custom/UrlShortenerForm"
 
 export const HomePage = () => {
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center px-6 geometric-grid">
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 geometric-grid">
       <GeometricShapes />
 
       {/* Theme toggle top-right */}
@@ -14,7 +14,7 @@ export const HomePage = () => {
         <ThemeToggle />
       </div>
 
-      <div className="relative z-10 text-center max-w-3xl mx-auto">
+      <div className="text-center w-full">
         {/* Heading */}
         <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4">
           Shorten.{" "}
@@ -23,8 +23,9 @@ export const HomePage = () => {
           Track.
         </h1>
 
-        <p className="text-muted-foreground text-lg md:text-xl max-w-xl mx-auto mb-12 leading-relaxed">
+        <p className="text-muted-foreground text-md xs:text-lg sm:text-xl max-w-xl mx-auto mb-12 leading-relaxed text-pretty">
           Transform unwieldy URLs into clean, memorable links.
+          <br />
           Fast, minimal, geometric.
         </p>
 

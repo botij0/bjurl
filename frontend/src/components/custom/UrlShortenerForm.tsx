@@ -41,7 +41,7 @@ export const UrlShortenerForm = () => {
   return (
     <div className="w-full max-w-2xl mx-auto">
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-col sm:flex-row">
         <div className="relative flex-1">
           <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
           <Input
