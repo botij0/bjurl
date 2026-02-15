@@ -130,7 +130,7 @@ describe("UrlController", () => {
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         originalUrl: "https://example.com",
-        shortUrl: "abc123",
+        shortUrl: "https://test.com/abc123",
       });
     });
 

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 
 import { UrlShortenerForm } from "./UrlShortenerForm";
 
@@ -24,7 +24,6 @@ vi.mock("./ShortenedResult", () => ({
   ),
 }));
 
-const BASE_URL = import.meta.env.VITE_API_URL;
 
 describe("UrlShortenerForm", () => {
 
@@ -36,7 +35,10 @@ describe("UrlShortenerForm", () => {
     test("shows error when input is empty and Shorten is clicked", async () => {
       render(<UrlShortenerForm />);
       const button = screen.getByRole("button", { name: /shorten/i });
-      fireEvent.click(button);
+
+      await act(async () => {
+        fireEvent.click(button);
+      });
 
       expect(((await screen.findByRole("alert")).innerHTML)).toBe("Please enter a URL.");
       expect(mockCreateShortUrl).not.toHaveBeenCalled();
@@ -45,8 +47,11 @@ describe("UrlShortenerForm", () => {
     test("shows error when URL is invalid", async () => {
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "not-a-valid-url" } });
-      fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "not-a-valid-url" } });
+        fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      });
 
       expect((await screen.findByRole("alert")).innerHTML).toContain(
         "Please enter a valid URL (e.g. https://example.com)."
@@ -62,8 +67,10 @@ describe("UrlShortenerForm", () => {
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "https://example.com" } });
-      fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "https://example.com" } });
+        fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      });
 
       expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com");
     });
@@ -76,8 +83,10 @@ describe("UrlShortenerForm", () => {
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "  https://example.com  " } });
-      fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "  https://example.com  " } });
+        fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      });
 
       expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com");
     });
@@ -90,12 +99,14 @@ describe("UrlShortenerForm", () => {
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "https://long.example.com/page" } });
-      fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "https://long.example.com/page" } });
+        fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      });
 
       const result = await screen.findByTestId("shortened-result");
       expect(result).toBeDefined();
-      expect(screen.getByTestId("short-url").innerHTML).toContain(`${BASE_URL}/xyz99`);
+      expect(screen.getByTestId("short-url").innerHTML).toContain(`xyz99`);
       expect(screen.getByTestId("original-url").innerHTML).toContain("https://long.example.com/page");
     });
 
@@ -104,8 +115,10 @@ describe("UrlShortenerForm", () => {
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "https://example.com" } });
-      fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "https://example.com" } });
+        fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
+      });
 
       await vi.waitFor(() => {
         expect(mockToast).toHaveBeenCalledWith("Something went wrong, please try again", {
@@ -125,8 +138,10 @@ describe("UrlShortenerForm", () => {
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "https://example.com" } });
-      fireEvent.keyDown(input, { key: "Enter" });
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "https://example.com" } });
+        fireEvent.keyDown(input, { key: "Enter" });
+      });
 
       expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com");
     });
@@ -134,10 +149,12 @@ describe("UrlShortenerForm", () => {
     test("does not submit when other keys are pressed", () => {
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
-      fireEvent.change(input, { target: { value: "https://example.com" } });
-      fireEvent.keyDown(input, { key: "a" });
-      fireEvent.keyDown(input, { key: "Tab" });
-      fireEvent.keyDown(input, { key: "Shift" });
+      act(() => {
+        fireEvent.change(input, { target: { value: "https://example.com" } });
+        fireEvent.keyDown(input, { key: "a" });
+        fireEvent.keyDown(input, { key: "Tab" });
+        fireEvent.keyDown(input, { key: "Shift" });
+      });
 
       expect(mockCreateShortUrl).not.toHaveBeenCalled();
     });

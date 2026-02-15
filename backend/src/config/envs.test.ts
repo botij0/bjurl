@@ -5,6 +5,8 @@ describe("envs.ts", () => {
     expect(envs).toEqual({
       PORT: 3333,
       POSTGRES_URL: "postgresql://postgres:123456@localhost:5432/URL-TEST",
+      BASE_URL: "https://test.com",
+      PUBLIC_PATH: "public",
     });
   });
 
