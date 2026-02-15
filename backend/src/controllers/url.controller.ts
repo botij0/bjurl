@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { UrlService } from "../services/url.service";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
 import { buildLogger } from "../config/logger";
+import { envs } from "../config/envs";
 
 export class UrlController {
   private urlService: UrlService;
@@ -44,7 +45,7 @@ export class UrlController {
     return url
       ? res.status(201).json({
           originalUrl: url.long_url,
-          shortUrl: url.short_url,
+          shortUrl: `${envs.BASE_URL}/${url.short_url}`,
         })
       : res.status(500).json({
           error: "Something went wrong creating the url",

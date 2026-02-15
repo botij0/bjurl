@@ -55,7 +55,7 @@ export const UrlShortenerForm = () => {
       setLoading(false)
       return
     }
-    setShortUrl(`${import.meta.env.VITE_API_URL}/${urlResponse.shortUrl}`);
+    setShortUrl(urlResponse.shortUrl);
     setOriginalUrl(urlResponse.originalUrl);
     setLoading(false)
   };
