@@ -16,10 +16,11 @@ Url shortener fully functional with a modern, geometric design and tracking of s
 
 ## Contents
 
-1. [Execution](#execution)
-    - [Environment Variables](#environment-variables)
-    - [Run App Docker Recommended](#run-app-docker-recommended)
-    - [Run App Locally](#run-app-locally)
+- [Contents](#contents)
+- [Execution](#execution)
+  - [Environment variables](#environment-variables)
+  - [Run App Docker Recommended](#run-app-docker-recommended)
+  - [Run app Manual](#run-app-manual)
 
 ## Execution
 
@@ -28,16 +29,17 @@ This section contains how to execute the application once you have cloned the re
 ### Environment variables
 
 1. Copy the enviroment template of the `backend` folder:
+
 ```
 cd backend && cp .env.template .env
 ```
+
 > [!NOTE]
 > In the `template_secrets.env` file you can find the following variables:
 >
 > - `PORT=3334`
 > - `PUBLIC_PATH=public`
 > - `BASE_URL=your_domain`
->
 > - `POSTGRES_URL=postgresql://postgres:123456@localhost:5432/URL`
 > - `POSTGRES_USER=postgres`
 > - `POSTGRES_DB=URL`
@@ -49,4 +51,41 @@ cd backend && cp .env.template .env
 
 ### Run App Docker Recommended
 
-### Run app locally
+There are two options avaliable. If you alredy have an external `PostgreSql` database, you can only execute the backend service with the `docker-compose.yml` inside the `backend/` folder:
+
+```
+cd backend && docker compose up -d
+```
+
+> [!NOTE]
+> The frontend project is alredy built and inside the `public` folder of backend project.
+>
+> If you modified the frontend you will need to build it and move it to `backend/public` folder.
+
+If you also need a local database you can run the `docker-compose.yml` at the root of the repository:
+
+```
+docker compose up -d
+```
+
+### Run app Manual
+
+For this project, I used the package manager of `bun` avilable on: [Bun](https://bun.com/)
+
+1. Hava a PostgresSql database running or run the docker-compose.database.yml to run one container:
+
+```
+docker compose -f docker-compose.database.yml up -d
+```
+
+2. Install the backend dependencies:
+
+```
+bun install
+```
+
+3. Run the backend project:
+
+```
+bun run dev
+```
