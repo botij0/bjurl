@@ -5,7 +5,17 @@ import { UrlShortenerForm } from "./UrlShortenerForm";
 
 const mockCreateShortUrl = vi.fn();
 vi.mock("@/actions/create-short-url.action", () => ({
-  createShortUrl: (url: string) => mockCreateShortUrl(url),
+  createShortUrl: (url: string, options?: unknown) => mockCreateShortUrl(url, options),
+}));
+
+const mockCheckAlias = vi.fn();
+vi.mock("@/actions/check-alias.action", () => ({
+  checkAlias: (alias: string, signal?: AbortSignal) => mockCheckAlias(alias, signal),
+}));
+
+const mockAddLinkToHistory = vi.fn();
+vi.mock("@/lib/link-history", () => ({
+  addLinkToHistory: (link: unknown) => mockAddLinkToHistory(link),
 }));
 
 const mockToast = vi.fn();
@@ -24,13 +34,19 @@ vi.mock("./ShortenedResult", () => ({
   ),
 }));
 
+const success = (shortUrl = "https://bjurl.test/abc") => ({
+  ok: true as const,
+  data: { originalUrl: "https://example.com", shortUrl },
+});
 
 describe("UrlShortenerForm", () => {
-
   beforeEach(() => {
     mockCreateShortUrl.mockReset();
+    mockCheckAlias.mockReset();
+    mockAddLinkToHistory.mockReset();
     mockToast.mockClear();
   });
+
   describe("handleShortenUrl", () => {
     test("shows error when input is empty and Shorten is clicked", async () => {
       render(<UrlShortenerForm />);
@@ -60,10 +76,7 @@ describe("UrlShortenerForm", () => {
     });
 
     test("accepts valid URL and calls createShortUrl", async () => {
-      mockCreateShortUrl.mockResolvedValue({
-        originalUrl: "https://example.com",
-        shortUrl: "abc12",
-      });
+      mockCreateShortUrl.mockResolvedValue(success());
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
@@ -72,14 +85,15 @@ describe("UrlShortenerForm", () => {
         fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
       });
 
-      expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com");
+      expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com", {
+        customAlias: undefined,
+        expiresAt: undefined,
+        maxClicks: undefined,
+      });
     });
 
     test("trims URL before sending", async () => {
-      mockCreateShortUrl.mockResolvedValue({
-        originalUrl: "https://example.com",
-        shortUrl: "xyz",
-      });
+      mockCreateShortUrl.mockResolvedValue(success());
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
@@ -88,14 +102,16 @@ describe("UrlShortenerForm", () => {
         fireEvent.click(screen.getByRole("button", { name: /shorten/i }));
       });
 
-      expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com");
+      expect(mockCreateShortUrl).toHaveBeenCalledWith(
+        "https://example.com",
+        expect.any(Object)
+      );
     });
 
-    test("shows ShortenedResult with short and original URL on success", async () => {
-      mockCreateShortUrl.mockResolvedValue({
-        originalUrl: "https://long.example.com/page",
-        shortUrl: "xyz99",
-      });
+    test("shows ShortenedResult and stores history on success", async () => {
+      mockCreateShortUrl.mockResolvedValue(
+        success("https://bjurl.test/xyz99")
+      );
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
@@ -107,11 +123,18 @@ describe("UrlShortenerForm", () => {
       const result = await screen.findByTestId("shortened-result");
       expect(result).toBeDefined();
       expect(screen.getByTestId("short-url").innerHTML).toContain(`xyz99`);
-      expect(screen.getByTestId("original-url").innerHTML).toContain("https://long.example.com/page");
+      expect(screen.getByTestId("original-url").innerHTML).toContain("https://example.com");
+      expect(mockAddLinkToHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ shortUrl: "https://bjurl.test/xyz99" })
+      );
     });
 
-    test("shows toast and does not set result when createShortUrl returns null", async () => {
-      mockCreateShortUrl.mockResolvedValue(null);
+    test("shows toast and does not set result when createShortUrl fails", async () => {
+      mockCreateShortUrl.mockResolvedValue({
+        ok: false,
+        status: 500,
+        error: "Something went wrong, please try again",
+      });
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
@@ -127,14 +150,122 @@ describe("UrlShortenerForm", () => {
       });
       expect(screen.queryByTestId("shortened-result")).toBeNull();
     });
+
+    test("shows inline error when the alias is taken", async () => {
+      mockCheckAlias.mockResolvedValue({ available: true, reason: null });
+      mockCreateShortUrl.mockResolvedValue({
+        ok: false,
+        status: 409,
+        error: "This alias is already in use",
+      });
+
+      render(<UrlShortenerForm />);
+      fireEvent.click(screen.getByRole("button", { name: /options/i }));
+      fireEvent.change(screen.getByLabelText(/custom alias/i), {
+        target: { value: "promo" },
+      });
+
+      await screen.findByText(/alias is available/i);
+
+      await act(async () => {
+        fireEvent.change(screen.getByPlaceholderText(/paste your long url/i), {
+          target: { value: "https://example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: /^shorten$/i }));
+      });
+
+      expect((await screen.findByRole("alert")).innerHTML).toBe(
+        "This alias is already in use"
+      );
+      expect(mockToast).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("link options", () => {
+    test("toggles the options panel", () => {
+      render(<UrlShortenerForm />);
+
+      expect(screen.queryByLabelText(/custom alias/i)).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: /options/i }));
+
+      expect(screen.getByLabelText(/custom alias/i)).toBeDefined();
+      expect(screen.getByLabelText(/expiration/i)).toBeDefined();
+      expect(screen.getByLabelText(/one-time link/i)).toBeDefined();
+    });
+
+    test("checks alias availability while typing", async () => {
+      mockCheckAlias.mockResolvedValue({ available: true, reason: null });
+
+      render(<UrlShortenerForm />);
+      fireEvent.click(screen.getByRole("button", { name: /options/i }));
+      fireEvent.change(screen.getByLabelText(/custom alias/i), {
+        target: { value: "promo" },
+      });
+
+      await screen.findByText(/alias is available/i);
+
+      expect(mockCheckAlias).toHaveBeenCalledWith("promo", expect.any(AbortSignal));
+    });
+
+    test("blocks submit when the alias is not available", async () => {
+      mockCheckAlias.mockResolvedValue({ available: false, reason: "taken" });
+
+      render(<UrlShortenerForm />);
+      fireEvent.click(screen.getByRole("button", { name: /options/i }));
+      fireEvent.change(screen.getByLabelText(/custom alias/i), {
+        target: { value: "promo" },
+      });
+      await screen.findByText(/already in use/i);
+
+      await act(async () => {
+        fireEvent.change(screen.getByPlaceholderText(/paste your long url/i), {
+          target: { value: "https://example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: /^shorten$/i }));
+      });
+
+      expect((await screen.findByRole("alert")).innerHTML).toBe(
+        "This alias is already in use"
+      );
+      expect(mockCreateShortUrl).not.toHaveBeenCalled();
+    });
+
+    test("sends alias, expiration and one-time options", async () => {
+      mockCheckAlias.mockResolvedValue({ available: true, reason: null });
+      mockCreateShortUrl.mockResolvedValue(
+        success("https://bjurl.test/promo")
+      );
+
+      render(<UrlShortenerForm />);
+      fireEvent.click(screen.getByRole("button", { name: /options/i }));
+      fireEvent.change(screen.getByLabelText(/custom alias/i), {
+        target: { value: "promo" },
+      });
+      await screen.findByText(/alias is available/i);
+      fireEvent.change(screen.getByLabelText(/expiration/i), {
+        target: { value: "24h" },
+      });
+      fireEvent.click(screen.getByLabelText(/one-time link/i));
+
+      await act(async () => {
+        fireEvent.change(screen.getByPlaceholderText(/paste your long url/i), {
+          target: { value: "https://example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: /^shorten$/i }));
+      });
+
+      expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com", {
+        customAlias: "promo",
+        expiresAt: expect.any(String),
+        maxClicks: 1,
+      });
+    });
   });
 
   describe("handleKeyDown", () => {
     test("submits when Enter is pressed in input", async () => {
-      mockCreateShortUrl.mockResolvedValue({
-        originalUrl: "https://example.com",
-        shortUrl: "ent",
-      });
+      mockCreateShortUrl.mockResolvedValue(success("https://bjurl.test/ent"));
 
       render(<UrlShortenerForm />);
       const input = screen.getByPlaceholderText(/paste your long url/i);
@@ -143,7 +274,10 @@ describe("UrlShortenerForm", () => {
         fireEvent.keyDown(input, { key: "Enter" });
       });
 
-      expect(mockCreateShortUrl).toHaveBeenCalledWith("https://example.com");
+      expect(mockCreateShortUrl).toHaveBeenCalledWith(
+        "https://example.com",
+        expect.any(Object)
+      );
     });
 
     test("does not submit when other keys are pressed", () => {

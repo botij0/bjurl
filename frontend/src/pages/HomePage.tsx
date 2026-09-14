@@ -1,3 +1,6 @@
+import { Link } from "react-router"
+import { History } from "lucide-react"
+
 import ThemeToggle from "@/components/custom/ThemeToggle"
 import { StatsBar } from "@/components/custom/StatsBar"
 import { GeometricShapes } from "@/components/custom/GeometricShapes"
@@ -8,6 +11,17 @@ export const HomePage = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 geometric-grid">
       <GeometricShapes />
+
+      {/* My links nav top-left */}
+      <div className="absolute top-6 left-6 z-20">
+        <Link
+          to="/links"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <History className="w-4 h-4" />
+          My links
+        </Link>
+      </div>
 
       {/* Theme toggle top-right */}
       <div className="absolute top-6 right-6 z-20">
