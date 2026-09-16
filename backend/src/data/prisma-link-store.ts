@@ -95,11 +95,21 @@ export class PrismaLinkStore implements LinkStore {
 
   public async totalStats(): Promise<{ urls: number; clicks: number }> {
     const urls = await this.client.url.count();
-    const clicks = await this.client.url.aggregate({
-      _sum: { counter: true },
+    const clicks = await this.client.click.count();
+
+    return { urls, clicks };
+  }
+
+  public async clickCountsFor(
+    linkIds: bigint[],
+  ): Promise<{ url_id: bigint; count: number }[]> {
+    const rows = await this.client.click.groupBy({
+      by: ["url_id"],
+      where: { url_id: { in: linkIds } },
+      _count: { _all: true },
     });
 
-    return { urls, clicks: clicks._sum.counter ?? 0 };
+    return rows.map((row) => ({ url_id: row.url_id, count: row._count._all }));
   }
 
   public async clicksFor(linkId: bigint): Promise<ClickRow[]> {

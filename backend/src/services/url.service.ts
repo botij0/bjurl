@@ -227,7 +227,7 @@ export class UrlService {
       const stats: LinkStats = {
         shortUrl: url.short_url ?? shortUrl,
         originalUrl: url.long_url,
-        totalClicks: url.counter,
+        totalClicks: clicks.length,
         uniqueClicks: uniqueVisitors.size,
         createdAt: url.created_at,
         expiresAt: url.expires_at,
@@ -265,10 +265,15 @@ export class UrlService {
     try {
       const urls = await this.store.findManyByCodes(shortUrls);
 
+      if (urls.length === 0) return [];
+
+      const counts = await this.store.clickCountsFor(urls.map((url) => url.id));
+      const byLink = new Map(counts.map((entry) => [entry.url_id, entry.count]));
+
       return urls.map((url) => ({
         shortUrl: url.short_url ?? "",
         originalUrl: url.long_url,
-        totalClicks: url.counter,
+        totalClicks: byLink.get(url.id) ?? 0,
         createdAt: url.created_at,
         expiresAt: url.expires_at,
         maxClicks: url.max_clicks,

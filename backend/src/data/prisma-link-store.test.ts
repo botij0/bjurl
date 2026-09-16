@@ -32,6 +32,8 @@ const fakeClient = () => ({
   click: {
     findMany: jest.fn(),
     create: jest.fn(),
+    count: jest.fn(),
+    groupBy: jest.fn(),
   },
   $transaction: jest.fn(),
 });
@@ -217,21 +219,44 @@ describe("PrismaLinkStore", () => {
   });
 
   describe("totalStats", () => {
-    test("should total links and their counters", async () => {
+    test("should total links and logged clicks", async () => {
       client.url.count.mockResolvedValue(5);
-      client.url.aggregate.mockResolvedValue({ _sum: { counter: 20 } });
+      client.click.count.mockResolvedValue(20);
 
       expect(await store.totalStats()).toEqual({ urls: 5, clicks: 20 });
-      expect(client.url.aggregate).toHaveBeenCalledWith({
-        _sum: { counter: true },
+      expect(client.url.aggregate).not.toHaveBeenCalled();
+    });
+
+    test("should report no clicks when nothing was logged", async () => {
+      client.url.count.mockResolvedValue(0);
+      client.click.count.mockResolvedValue(0);
+
+      expect(await store.totalStats()).toEqual({ urls: 0, clicks: 0 });
+    });
+  });
+
+  describe("clickCountsFor", () => {
+    test("should count logged clicks per link", async () => {
+      client.click.groupBy.mockResolvedValue([
+        { url_id: 1n, _count: { _all: 3 } },
+        { url_id: 2n, _count: { _all: 1 } },
+      ]);
+
+      expect(await store.clickCountsFor([1n, 2n])).toEqual([
+        { url_id: 1n, count: 3 },
+        { url_id: 2n, count: 1 },
+      ]);
+      expect(client.click.groupBy).toHaveBeenCalledWith({
+        by: ["url_id"],
+        where: { url_id: { in: [1n, 2n] } },
+        _count: { _all: true },
       });
     });
 
-    test("should treat an empty sum as zero clicks", async () => {
-      client.url.count.mockResolvedValue(0);
-      client.url.aggregate.mockResolvedValue({ _sum: { counter: null } });
+    test("should say nothing about links without clicks", async () => {
+      client.click.groupBy.mockResolvedValue([]);
 
-      expect(await store.totalStats()).toEqual({ urls: 0, clicks: 0 });
+      expect(await store.clickCountsFor([1n])).toEqual([]);
     });
   });
 

@@ -52,6 +52,7 @@ export interface LinkStore {
   insertLink(input: NewLink, candidates: CodeCandidates): Promise<LinkRecord>;
   findManyByCodes(codes: string[]): Promise<LinkRecord[]>;
   totalStats(): Promise<{ urls: number; clicks: number }>;
+  clickCountsFor(linkIds: bigint[]): Promise<{ url_id: bigint; count: number }[]>;
   clicksFor(linkId: bigint): Promise<ClickRow[]>;
   recordClick(click: ClickEvent): Promise<void>;
 }

@@ -45,8 +45,15 @@ the backend answers with the verdict alone.
 ## Click
 
 One resolution of a link, recorded with referrer, user agent, a salted hash of the IP, and the
-country. Two representations exist today: `url.counter` (incremented on resolution) and a
-`click` row. See the architecture review for why that is a defect.
+country. Stored once, as a `click` row, and every count a user sees reads it: the per-link total,
+the breakdowns, the dashboard count, and the global total. Recording is best-effort: it never
+fails a resolution, so the log can be short.
+
+## Admission
+
+A resolution the link's expiry and click limit allowed through. Counted in `url.counter`, which
+only the click-limit predicate reads. An admission is not a reported click: when writing a click
+fails, the admission still counts against the limit but leaves no row behind.
 
 ## Link history
 

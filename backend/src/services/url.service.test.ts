@@ -224,12 +224,13 @@ describe("UrlService", () => {
   });
 
   describe("getStats", () => {
-    test("should total the links and their clicks", async () => {
+    test("should total the links and their logged clicks", async () => {
       await seed("one");
       await seed("two");
       await service.getLongUrl("one");
       await service.getLongUrl("two");
       await service.getLongUrl("two");
+      await flush();
 
       expect(await service.getStats()).toEqual({ urls: 2, clicks: 3 });
     });
@@ -249,10 +250,6 @@ describe("UrlService", () => {
 
     test("should aggregate clicks by day, referrer, device and country", async () => {
       const link = await seed("abc123");
-
-      await store.claimRedirect("abc123", new Date());
-      await store.claimRedirect("abc123", new Date());
-      await store.claimRedirect("abc123", new Date());
 
       const clicks = [
         {
@@ -315,6 +312,18 @@ describe("UrlService", () => {
       );
     });
 
+    test("should count logged clicks, not admissions", async () => {
+      await seed("abc123");
+
+      await store.claimRedirect("abc123", new Date());
+      await store.claimRedirect("abc123", new Date());
+
+      const result = await service.getLinkStats("abc123");
+
+      expect(result!.totalClicks).toBe(0);
+      expect(result!.clicksByDay).toEqual([]);
+    });
+
     test("should return null if error occurs", async () => {
       jest.spyOn(store, "findByCode").mockRejectedValue(new Error("DB error"));
 
@@ -339,6 +348,22 @@ describe("UrlService", () => {
           maxClicks: null,
         },
       ]);
+    });
+
+    test("should summarise logged clicks, not admissions", async () => {
+      await seed("one");
+      jest.spyOn(store, "recordClick").mockRejectedValue(new Error("DB error"));
+
+      await service.getLongUrl("one");
+      await service.getLongUrl("one");
+      await flush();
+
+      expect(await service.getStatsByShortUrls(["one"])).toEqual([
+        expect.objectContaining({ shortUrl: "one", totalClicks: 0 }),
+      ]);
+      expect(await store.findByCode("one")).toEqual(
+        expect.objectContaining({ counter: 2 }),
+      );
     });
 
     test("should return an empty array if error occurs", async () => {

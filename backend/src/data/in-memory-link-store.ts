@@ -76,10 +76,18 @@ export class InMemoryLinkStore implements LinkStore {
   }
 
   public async totalStats(): Promise<{ urls: number; clicks: number }> {
-    return {
-      urls: this.links.length,
-      clicks: this.links.reduce((sum, link) => sum + link.counter, 0),
-    };
+    return { urls: this.links.length, clicks: this.clicks.length };
+  }
+
+  public async clickCountsFor(
+    linkIds: bigint[],
+  ): Promise<{ url_id: bigint; count: number }[]> {
+    return [...new Set(linkIds)]
+      .map((id) => ({
+        url_id: id,
+        count: this.clicks.filter((click) => click.url_id === id).length,
+      }))
+      .filter((entry) => entry.count > 0);
   }
 
   public async clicksFor(linkId: bigint): Promise<ClickRow[]> {
