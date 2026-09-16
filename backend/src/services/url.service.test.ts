@@ -1,49 +1,39 @@
-import { UrlService } from "./url.service";
-import { prisma } from "../data/postgres";
-import { encodeBase62 } from "../config/encode";
 import { buildLogger } from "../config/logger";
-
-jest.mock("../data/postgres", () => ({
-  prisma: {
-    url: {
-      findUnique: jest.fn(),
-      findMany: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
-      create: jest.fn(),
-      count: jest.fn(),
-      aggregate: jest.fn(),
-    },
-    click: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-    },
-    $transaction: jest.fn(),
-  },
-}));
-
-jest.mock("../config/encode", () => ({
-  encodeBase62: jest.fn(),
-}));
+import { InMemoryLinkStore } from "../data/in-memory-link-store";
+import { UrlService } from "./url.service";
 
 jest.mock("../config/logger", () => ({
   buildLogger: jest.fn(),
 }));
 
-const baseUrl = {
-  id: 1n,
-  long_url: "https://example.com",
-  short_url: "abc123",
-  counter: 0,
-  created_at: new Date("2026-01-01T00:00:00Z"),
-  expires_at: null,
-  max_clicks: null,
-  custom_alias: false,
+const FIXED_SUFFIX = "dead";
+
+const clickContext = {
+  referrer: "https://google.com",
+  userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+  ip: "10.0.0.1",
+  country: "ES",
 };
 
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
 describe("UrlService", () => {
+  let store: InMemoryLinkStore;
   let service: UrlService;
   let mockLogger: { log: jest.Mock; warn: jest.Mock; error: jest.Mock };
+
+  const seed = (
+    code: string,
+    overrides: { long_url?: string; expires_at?: Date; max_clicks?: number } = {},
+  ) =>
+    store.insertLink(
+      {
+        long_url: overrides.long_url ?? "https://taken.example",
+        expires_at: overrides.expires_at,
+        max_clicks: overrides.max_clicks,
+      },
+      () => [code],
+    );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -55,110 +45,83 @@ describe("UrlService", () => {
     };
 
     (buildLogger as jest.Mock).mockReturnValue(mockLogger);
-    (prisma.click.create as jest.Mock).mockResolvedValue({});
 
-    service = new UrlService();
+    store = new InMemoryLinkStore();
+    service = new UrlService(store, () => FIXED_SUFFIX);
   });
 
   describe("getLongUrl", () => {
-    const context = {
-      referrer: "https://google.com",
-      userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-      ip: "10.0.0.1",
-      country: "ES",
-    };
-
-    test("should return not_found when the code does not exist", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(null);
-
-      const result = await service.getLongUrl("missing");
-
-      expect(result).toEqual({ ok: false, reason: "not_found" });
-      expect(prisma.url.updateMany).not.toHaveBeenCalled();
+    test("should report a missing code as not found", async () => {
+      expect(await service.getLongUrl("missing")).toEqual({
+        ok: false,
+        reason: "not_found",
+      });
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
-    test("should increment the counter and return the url", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(baseUrl);
-      (prisma.url.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    test("should count the click and hand back the link", async () => {
+      await seed("abc123");
 
-      const result = await service.getLongUrl("abc123", context);
+      const result = await service.getLongUrl("abc123", clickContext);
 
-      expect(prisma.url.updateMany).toHaveBeenCalledWith({
-        where: { id: baseUrl.id },
-        data: { counter: { increment: 1 } },
-      });
       expect(result).toEqual({
         ok: true,
-        url: expect.objectContaining({ counter: 1, long_url: baseUrl.long_url }),
+        url: expect.objectContaining({
+          short_url: "abc123",
+          long_url: "https://taken.example",
+          counter: 1,
+        }),
       });
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        "Short URL resolved",
-        expect.objectContaining({ shortUrl: "abc123" }),
+      expect(await store.findByCode("abc123")).toEqual(
+        expect.objectContaining({ counter: 1 }),
       );
     });
 
-    test("should store the click event with a hashed ip", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(baseUrl);
-      (prisma.url.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+    test("should report an expired link as gone", async () => {
+      await seed("abc123", { expires_at: new Date(Date.now() - 60_000) });
 
-      await service.getLongUrl("abc123", context);
+      expect(await service.getLongUrl("abc123")).toEqual({
+        ok: false,
+        reason: "gone",
+      });
+      expect(mockLogger.warn).toHaveBeenCalled();
+    });
 
-      expect(prisma.click.create).toHaveBeenCalledWith({
-        data: {
-          url_id: baseUrl.id,
+    test("should let a one-time link through once and then report it gone", async () => {
+      await seed("abc123", { max_clicks: 1 });
+
+      expect((await service.getLongUrl("abc123")).ok).toBe(true);
+      expect(await service.getLongUrl("abc123")).toEqual({
+        ok: false,
+        reason: "gone",
+      });
+    });
+
+    test("should store the click without the raw ip", async () => {
+      const link = await seed("abc123");
+
+      await service.getLongUrl("abc123", clickContext);
+      await flush();
+
+      expect(await store.clicksFor(link.id)).toEqual([
+        expect.objectContaining({
           referrer: "https://google.com",
-          user_agent: context.userAgent,
-          ip_hash: expect.not.stringContaining("10.0.0.1"),
+          user_agent: clickContext.userAgent,
           country: "ES",
-        },
-      });
-    });
-
-    test("should add expiration condition when the url expires", async () => {
-      const expiring = { ...baseUrl, expires_at: new Date("2026-01-02T00:00:00Z") };
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(expiring);
-      (prisma.url.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
-      await service.getLongUrl("abc123");
-
-      expect(prisma.url.updateMany).toHaveBeenCalledWith({
-        where: { id: baseUrl.id, expires_at: { gt: expect.any(Date) } },
-        data: { counter: { increment: 1 } },
-      });
-    });
-
-    test("should add click limit condition when max_clicks is set", async () => {
-      const limited = { ...baseUrl, max_clicks: 5 };
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(limited);
-      (prisma.url.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-
-      await service.getLongUrl("abc123");
-
-      expect(prisma.url.updateMany).toHaveBeenCalledWith({
-        where: { id: baseUrl.id, counter: { lt: 5 } },
-        data: { counter: { increment: 1 } },
-      });
-    });
-
-    test("should return gone when the link expired or hit its limit", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(baseUrl);
-      (prisma.url.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
-
-      const result = await service.getLongUrl("abc123");
-
-      expect(result).toEqual({ ok: false, reason: "gone" });
-      expect(prisma.click.create).not.toHaveBeenCalled();
+          ip_hash: expect.not.stringContaining("10.0.0.1"),
+        }),
+      ]);
     });
 
     test("should not fail the redirect when click storage fails", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(baseUrl);
-      (prisma.url.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
-      (prisma.click.create as jest.Mock).mockRejectedValue(new Error("DB error"));
-      const context = { ip: undefined, referrer: undefined };
+      await seed("abc123");
+      jest.spyOn(store, "recordClick").mockRejectedValue(new Error("DB error"));
 
-      const result = await service.getLongUrl("abc123", context);
-
-      await new Promise((resolve) => setImmediate(resolve));
+      const result = await service.getLongUrl("abc123", {
+        ip: undefined,
+        referrer: undefined,
+      });
+      await flush();
 
       expect(result.ok).toBe(true);
       expect(mockLogger.error).toHaveBeenCalledWith(
@@ -166,207 +129,166 @@ describe("UrlService", () => {
       );
     });
 
-    test("should return error if database throws", async () => {
-      (prisma.url.findUnique as jest.Mock).mockRejectedValue(new Error("DB error"));
+    test("should report error when the store fails", async () => {
+      jest.spyOn(store, "claimRedirect").mockRejectedValue(new Error("DB error"));
 
-      const result = await service.getLongUrl("fail");
-
+      expect(await service.getLongUrl("abc123")).toEqual({
+        ok: false,
+        reason: "error",
+      });
       expect(mockLogger.error).toHaveBeenCalled();
-      expect(result).toEqual({ ok: false, reason: "error" });
     });
   });
 
   describe("createShortUrl", () => {
-    test("should create a url with a custom alias", async () => {
-      (prisma.url.create as jest.Mock).mockResolvedValue({
-        ...baseUrl,
-        short_url: "promo",
-        custom_alias: true,
-      });
-
+    test("should create a link with a custom alias", async () => {
       const result = await service.createShortUrl("https://example.com", {
         customAlias: "promo",
       });
 
-      expect(prisma.url.create).toHaveBeenCalledWith({
-        data: {
-          long_url: "https://example.com",
-          short_url: "promo",
-          custom_alias: true,
-          expires_at: undefined,
-          max_clicks: undefined,
-        },
-      });
       expect(result).toEqual({
         ok: true,
-        url: expect.objectContaining({ short_url: "promo", custom_alias: true }),
+        url: expect.objectContaining({
+          short_url: "promo",
+          custom_alias: true,
+          counter: 0,
+        }),
       });
     });
 
-    test("should return taken when the alias already exists", async () => {
-      (prisma.url.create as jest.Mock).mockRejectedValue({ code: "P2002" });
+    test("should report taken when the alias is already in use", async () => {
+      await seed("promo");
 
       const result = await service.createShortUrl("https://example.com", {
         customAlias: "promo",
       });
 
-      expect(mockLogger.warn).toHaveBeenCalled();
       expect(result).toEqual({ ok: false, reason: "taken" });
+      expect(mockLogger.warn).toHaveBeenCalled();
     });
 
-    test("should create a url with a generated base62 code", async () => {
-      const created = { ...baseUrl, short_url: null };
-      const updated = { ...baseUrl, short_url: "xyz789" };
-      (encodeBase62 as jest.Mock).mockReturnValue("xyz789");
+    test("should derive the generated code from the row id", async () => {
+      const result = await service.createShortUrl("https://example.com");
 
-      (prisma.$transaction as jest.Mock).mockImplementation(async (callback: any) =>
-        callback({
-          url: {
-            create: jest.fn().mockResolvedValue(created),
-            update: jest.fn().mockResolvedValue(updated),
-          },
-        }),
-      );
+      expect(result).toEqual({
+        ok: true,
+        url: expect.objectContaining({ short_url: "b", custom_alias: false }),
+      });
+    });
+
+    test("should fall back to a suffixed code when the generated one is in use", async () => {
+      await seed("c");
 
       const result = await service.createShortUrl("https://example.com");
 
-      expect(encodeBase62).toHaveBeenCalledWith(created.id);
-      expect(result).toEqual({ ok: true, url: updated });
+      expect(result).toEqual({
+        ok: true,
+        url: expect.objectContaining({ short_url: `c${FIXED_SUFFIX}` }),
+      });
     });
 
-    test("should retry with a suffix when the generated code collides", async () => {
-      const updated = { ...baseUrl, short_url: "abc1234f2a" };
-      (encodeBase62 as jest.Mock).mockReturnValue("abc123");
-
-      (prisma.$transaction as jest.Mock)
-        .mockRejectedValueOnce({ code: "P2002" })
-        .mockImplementationOnce(async (callback: any) =>
-          callback({
-            url: {
-              create: jest.fn().mockResolvedValue({ ...baseUrl, short_url: null }),
-              update: jest.fn().mockResolvedValue(updated),
-            },
-          }),
-        );
-
-      const result = await service.createShortUrl("https://example.com");
-
-      expect(prisma.$transaction).toHaveBeenCalledTimes(2);
-      expect(result).toEqual({ ok: true, url: updated });
-    });
-
-    test("should return error when all generated codes collide", async () => {
-      (encodeBase62 as jest.Mock).mockReturnValue("abc123");
-      (prisma.$transaction as jest.Mock).mockRejectedValue({ code: "P2002" });
+    test("should report error, not taken, when every generated code is in use", async () => {
+      await seed("d");
+      await seed(`d${FIXED_SUFFIX}`);
 
       const result = await service.createShortUrl("https://example.com");
 
       expect(result).toEqual({ ok: false, reason: "error" });
-    });
-
-    test("should return error if transaction fails", async () => {
-      (prisma.$transaction as jest.Mock).mockRejectedValue(
-        new Error("Transaction failed"),
-      );
-
-      const result = await service.createShortUrl("https://example.com");
-
       expect(mockLogger.error).toHaveBeenCalled();
-      expect(result).toEqual({ ok: false, reason: "error" });
     });
 
     test("should persist expiration and max clicks", async () => {
       const expiresAt = new Date("2027-01-01T00:00:00Z");
-      (prisma.url.create as jest.Mock).mockResolvedValue({
-        ...baseUrl,
-        expires_at: expiresAt,
-        max_clicks: 1,
-      });
 
-      await service.createShortUrl("https://example.com", {
+      const result = await service.createShortUrl("https://example.com", {
         customAlias: "once",
         expiresAt,
         maxClicks: 1,
       });
 
-      expect(prisma.url.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          expires_at: expiresAt,
-          max_clicks: 1,
-        }),
+      expect(result).toEqual({
+        ok: true,
+        url: expect.objectContaining({ expires_at: expiresAt, max_clicks: 1 }),
       });
+    });
+
+    test("should report error when the store fails", async () => {
+      jest.spyOn(store, "insertLink").mockRejectedValue(new Error("DB error"));
+
+      expect(await service.createShortUrl("https://example.com")).toEqual({
+        ok: false,
+        reason: "error",
+      });
+      expect(mockLogger.error).toHaveBeenCalled();
     });
   });
 
   describe("getStats", () => {
-    test("should return stats", async () => {
-      (prisma.url.count as jest.Mock).mockResolvedValue(5);
-      (prisma.url.aggregate as jest.Mock).mockResolvedValue({
-        _sum: { counter: 20 },
-      });
+    test("should total the links and their clicks", async () => {
+      await seed("one");
+      await seed("two");
+      await service.getLongUrl("one");
+      await service.getLongUrl("two");
+      await service.getLongUrl("two");
 
-      const result = await service.getStats();
-
-      expect(prisma.url.count).toHaveBeenCalled();
-      expect(prisma.url.aggregate).toHaveBeenCalledWith({
-        _sum: { counter: true },
-      });
-      expect(result).toEqual({ urls: 5, clicks: 20 });
+      expect(await service.getStats()).toEqual({ urls: 2, clicks: 3 });
     });
 
     test("should return null if error occurs", async () => {
-      (prisma.url.count as jest.Mock).mockRejectedValue(new Error("DB error"));
+      jest.spyOn(store, "totalStats").mockRejectedValue(new Error("DB error"));
 
-      const result = await service.getStats();
-
+      expect(await service.getStats()).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
-      expect(result).toBeNull();
     });
   });
 
   describe("getLinkStats", () => {
-    const clicks = [
-      {
-        referrer: null,
-        user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile",
-        ip_hash: "hash-1",
-        country: "US",
-        clicked_at: new Date("2026-09-10T10:00:00Z"),
-      },
-      {
-        referrer: "https://google.com",
-        user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        ip_hash: "hash-2",
-        country: "ES",
-        clicked_at: new Date("2026-09-11T10:00:00Z"),
-      },
-      {
-        referrer: "https://google.com",
-        user_agent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-        ip_hash: "hash-1",
-        country: null,
-        clicked_at: new Date("2026-09-11T12:00:00Z"),
-      },
-    ];
-
-    test("should return null when the url does not exist", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(null);
-
-      const result = await service.getLinkStats("missing");
-
-      expect(result).toBeNull();
+    test("should return null when the link does not exist", async () => {
+      expect(await service.getLinkStats("missing")).toBeNull();
     });
 
     test("should aggregate clicks by day, referrer, device and country", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue({
-        ...baseUrl,
-        counter: 3,
-      });
-      (prisma.click.findMany as jest.Mock).mockResolvedValue(clicks);
+      const link = await seed("abc123");
+
+      await store.claimRedirect("abc123", new Date());
+      await store.claimRedirect("abc123", new Date());
+      await store.claimRedirect("abc123", new Date());
+
+      const clicks = [
+        {
+          referrer: null,
+          user_agent:
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile",
+          ip_hash: "hash-1",
+          country: "US",
+          clicked_at: new Date("2026-09-10T10:00:00Z"),
+        },
+        {
+          referrer: "https://google.com",
+          user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+          ip_hash: "hash-2",
+          country: "ES",
+          clicked_at: new Date("2026-09-11T10:00:00Z"),
+        },
+        {
+          referrer: "https://google.com",
+          user_agent:
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+          ip_hash: "hash-1",
+          country: null,
+          clicked_at: new Date("2026-09-11T12:00:00Z"),
+        },
+      ];
+
+      for (const click of clicks) {
+        store.seedClick({ url_id: link.id, ...click });
+      }
 
       const result = await service.getLinkStats("abc123");
 
       expect(result).not.toBeNull();
+      expect(result!.shortUrl).toBe("abc123");
+      expect(result!.originalUrl).toBe("https://taken.example");
       expect(result!.totalClicks).toBe(3);
       expect(result!.uniqueClicks).toBe(2);
       expect(result!.clicksByDay).toEqual([
@@ -394,39 +316,25 @@ describe("UrlService", () => {
     });
 
     test("should return null if error occurs", async () => {
-      (prisma.url.findUnique as jest.Mock).mockRejectedValue(new Error("DB error"));
+      jest.spyOn(store, "findByCode").mockRejectedValue(new Error("DB error"));
 
-      const result = await service.getLinkStats("abc123");
-
+      expect(await service.getLinkStats("abc123")).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
-      expect(result).toBeNull();
     });
   });
 
   describe("getStatsByShortUrls", () => {
-    test("should return summaries for the given codes", async () => {
-      (prisma.url.findMany as jest.Mock).mockResolvedValue([
-        {
-          long_url: "https://example.com",
-          short_url: "abc123",
-          counter: 4,
-          created_at: baseUrl.created_at,
-          expires_at: null,
-          max_clicks: null,
-        },
-      ]);
+    test("should summarise only the codes it finds", async () => {
+      const one = await seed("one");
+      await seed("two");
+      await service.getLongUrl("one");
 
-      const result = await service.getStatsByShortUrls(["abc123"]);
-
-      expect(prisma.url.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { short_url: { in: ["abc123"] } } }),
-      );
-      expect(result).toEqual([
+      expect(await service.getStatsByShortUrls(["one", "missing"])).toEqual([
         {
-          shortUrl: "abc123",
-          originalUrl: "https://example.com",
-          totalClicks: 4,
-          createdAt: baseUrl.created_at,
+          shortUrl: "one",
+          originalUrl: "https://taken.example",
+          totalClicks: 1,
+          createdAt: one.created_at,
           expiresAt: null,
           maxClicks: null,
         },
@@ -434,39 +342,31 @@ describe("UrlService", () => {
     });
 
     test("should return an empty array if error occurs", async () => {
-      (prisma.url.findMany as jest.Mock).mockRejectedValue(new Error("DB error"));
+      jest
+        .spyOn(store, "findManyByCodes")
+        .mockRejectedValue(new Error("DB error"));
 
-      const result = await service.getStatsByShortUrls(["abc123"]);
-
+      expect(await service.getStatsByShortUrls(["abc"])).toEqual([]);
       expect(mockLogger.error).toHaveBeenCalled();
-      expect(result).toEqual([]);
     });
   });
 
   describe("isAliasAvailable", () => {
     test("should return true when the alias is free", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue(null);
-
-      const result = await service.isAliasAvailable("promo");
-
-      expect(result).toBe(true);
+      expect(await service.isAliasAvailable("promo")).toBe(true);
     });
 
     test("should return false when the alias is taken", async () => {
-      (prisma.url.findUnique as jest.Mock).mockResolvedValue({ id: 1n });
+      await seed("promo");
 
-      const result = await service.isAliasAvailable("promo");
-
-      expect(result).toBe(false);
+      expect(await service.isAliasAvailable("promo")).toBe(false);
     });
 
     test("should return null if error occurs", async () => {
-      (prisma.url.findUnique as jest.Mock).mockRejectedValue(new Error("DB error"));
+      jest.spyOn(store, "codeExists").mockRejectedValue(new Error("DB error"));
 
-      const result = await service.isAliasAvailable("promo");
-
+      expect(await service.isAliasAvailable("promo")).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
-      expect(result).toBeNull();
     });
   });
 });

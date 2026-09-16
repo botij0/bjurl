@@ -1,14 +1,10 @@
+import type { UrlService } from "../services/url.service";
 import { UrlController } from "./url.controller";
-import { UrlService } from "../services/url.service";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
 import { buildLogger } from "../config/logger";
 
-jest.mock("../services/url.service");
 jest.mock("../data/dtos/create-url.dto");
 jest.mock("../config/logger");
-jest.mock("../data/postgres", () => ({
-  prisma: {},
-}));
 
 describe("UrlController", () => {
   let controller: UrlController;
@@ -58,9 +54,7 @@ describe("UrlController", () => {
       isAliasAvailable: jest.fn(),
     } as unknown as jest.Mocked<UrlService>;
 
-    (UrlService as jest.Mock).mockImplementation(() => mockService);
-
-    controller = new UrlController();
+    controller = new UrlController(mockService);
   });
 
   describe("getUrl", () => {

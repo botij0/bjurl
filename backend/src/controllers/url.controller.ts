@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 
-import { UrlService, type ClickContext } from "../services/url.service";
+import type { ClickContext, UrlService } from "../services/url.service";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
 import { buildLogger } from "../config/logger";
 import { envs } from "../config/envs";
@@ -9,12 +9,9 @@ import { getAliasRejection, getAliasVerdict } from "../config/aliases";
 const MAX_BATCH_SIZE = 100;
 
 export class UrlController {
-  private urlService: UrlService;
   private readonly logger = buildLogger("url.controller");
 
-  constructor() {
-    this.urlService = new UrlService();
-  }
+  constructor(private readonly urlService: UrlService) {}
 
   public getUrl = async (req: Request, res: Response) => {
     const shortUrl = req.params.shortUrl;

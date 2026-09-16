@@ -12,8 +12,10 @@ click counter, an optional expiry, and an optional click limit. Stored in the `u
 ## Short code
 
 The identifier the system generates for a link: base62 of the link's row id, with a four
-hex-character suffix appended on collision, retried up to three times. Unique by construction.
-Stored in `url.short_url` together with aliases.
+hex-character suffix appended on collision, retried up to three times. Unique by construction,
+so a collision can only come from an alias that looks like a generated code. Stored in
+`url.short_url` together with aliases. The candidate list is the url module's policy; making one
+stick atomically is the link store's (`backend/src/data/link-store.ts`).
 
 ## Alias
 

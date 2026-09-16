@@ -1,20 +1,14 @@
 import { createHash, randomBytes } from "crypto";
 
 import { encodeBase62 } from "../config/encode";
-import { prisma } from "../data/postgres";
 import { buildLogger } from "../config/logger";
 import { envs } from "../config/envs";
-
-export interface UrlRecord {
-  id: bigint;
-  long_url: string;
-  short_url: string | null;
-  counter: number;
-  created_at: Date;
-  expires_at: Date | null;
-  max_clicks: number | null;
-  custom_alias: boolean;
-}
+import {
+  LinkCodeConflictError,
+  type LinkRecord,
+  type LinkStore,
+  type NewLink,
+} from "../data/link-store";
 
 export interface CreateShortUrlOptions {
   customAlias?: string;
@@ -30,11 +24,11 @@ export interface ClickContext {
 }
 
 export type CreateShortUrlResult =
-  | { ok: true; url: UrlRecord }
+  | { ok: true; url: LinkRecord }
   | { ok: false; reason: "taken" | "error" };
 
 export type ResolveUrlResult =
-  | { ok: true; url: UrlRecord }
+  | { ok: true; url: LinkRecord }
   | { ok: false; reason: "not_found" | "gone" | "error" };
 
 export interface LinkStats {
@@ -65,12 +59,10 @@ const TOP_ITEMS = 5;
 const REFERRER_MAX_LENGTH = 500;
 const USER_AGENT_MAX_LENGTH = 500;
 
-const isUniqueConstraintError = (error: unknown): boolean =>
-  typeof error === "object" &&
-  error !== null &&
-  (error as { code?: unknown }).code === "P2002";
-
 const randomSuffix = () => randomBytes(2).toString("hex");
+
+const truncate = (value: string, max: number): string =>
+  value.length > max ? `${value.slice(0, max)}...` : value;
 
 const classifyDevice = (userAgent?: string | null): string => {
   if (!userAgent) return "unknown";
@@ -89,9 +81,16 @@ const topEntries = (counts: Map<string, number>) =>
 
 export class UrlService {
   protected readonly logger;
+  private readonly store: LinkStore;
+  private readonly newSuffix: () => string;
 
-  constructor() {
+  constructor(
+    store: LinkStore,
+    newSuffix: () => string = randomSuffix,
+  ) {
     this.logger = buildLogger("url.service.js");
+    this.store = store;
+    this.newSuffix = newSuffix;
   }
 
   public async getLongUrl(
@@ -99,42 +98,26 @@ export class UrlService {
     context: ClickContext = {},
   ): Promise<ResolveUrlResult> {
     try {
-      const url = await prisma.url.findUnique({
-        where: { short_url: shortUrl },
-      });
+      const claimed = await this.store.claimRedirect(shortUrl, new Date());
 
-      if (!url) return { ok: false, reason: "not_found" };
+      if (!claimed.ok) {
+        if (claimed.reason === "gone") {
+          this.logger.warn("Short URL expired or reached its click limit", {
+            shortUrl,
+          });
+        }
 
-      const where: {
-        id: bigint;
-        expires_at?: { gt: Date };
-        counter?: { lt: number };
-      } = { id: url.id };
-
-      if (url.expires_at) where.expires_at = { gt: new Date() };
-      if (url.max_clicks !== null) where.counter = { lt: url.max_clicks };
-
-      const updated = await prisma.url.updateMany({
-        where,
-        data: { counter: { increment: 1 } },
-      });
-
-      if (updated.count === 0) {
-        this.logger.warn("Short URL expired or reached its click limit", {
-          shortUrl,
-        });
-        return { ok: false, reason: "gone" };
+        return claimed;
       }
 
-      this.recordClick(url.id, context);
+      this.recordClick(claimed.link.id, context);
 
       this.logger.log("Short URL resolved", {
         shortUrl,
-        redirectTo:
-          url.long_url.length > 80 ? `${url.long_url.slice(0, 80)}...` : url.long_url,
+        redirectTo: truncate(claimed.link.long_url, 80),
       });
 
-      return { ok: true, url: { ...url, counter: url.counter + 1 } };
+      return { ok: true, url: claimed.link };
     } catch (error) {
       this.logger.error(
         `Error getting a long url from Database: { params: ${shortUrl}, error: ${error}}`,
@@ -147,43 +130,42 @@ export class UrlService {
     longUrl: string,
     options: CreateShortUrlOptions = {},
   ): Promise<CreateShortUrlResult> {
+    const input: NewLink = {
+      long_url: longUrl,
+      expires_at: options.expiresAt,
+      max_clicks: options.maxClicks,
+      custom_alias: options.customAlias !== undefined,
+    };
+
+    const alias = options.customAlias;
+    const candidates = alias
+      ? () => [alias]
+      : (id: bigint) => this.generatedCandidates(id);
+
     try {
-      if (options.customAlias) {
-        const created = await prisma.url.create({
-          data: {
-            long_url: longUrl,
-            short_url: options.customAlias,
-            custom_alias: true,
-            expires_at: options.expiresAt,
-            max_clicks: options.maxClicks,
-          },
-        });
-
-        this.logger.log("Short URL created", {
-          shortUrl: created.short_url,
-          longUrl: longUrl.length > 100 ? `${longUrl.slice(0, 100)}...` : longUrl,
-          id: created.id,
-        });
-
-        return { ok: true, url: created };
-      }
-
-      const created = await this.createWithGeneratedCode(longUrl, options);
+      const created = await this.store.insertLink(input, candidates);
 
       this.logger.log("Short URL created", {
         shortUrl: created.short_url,
-        longUrl: longUrl.length > 100 ? `${longUrl.slice(0, 100)}...` : longUrl,
+        longUrl: truncate(longUrl, 100),
         id: created.id,
       });
 
       return { ok: true, url: created };
     } catch (error) {
-      if (isUniqueConstraintError(error)) {
-        this.logger.warn("Short URL alias already in use", {
-          customAlias: options.customAlias,
-          error: `${error}`,
-        });
-        return { ok: false, reason: "taken" };
+      if (error instanceof LinkCodeConflictError) {
+        if (alias) {
+          this.logger.warn("Short URL alias already in use", {
+            customAlias: alias,
+            error: `${error}`,
+          });
+          return { ok: false, reason: "taken" };
+        }
+
+        this.logger.error(
+          `Every generated code was already in use: { params: ${longUrl}, error: ${error}}`,
+        );
+        return { ok: false, reason: "error" };
       }
 
       this.logger.error(
@@ -195,19 +177,12 @@ export class UrlService {
 
   public async getStats() {
     try {
-      const totalUrls = await prisma.url.count();
-      const totalClicks = await prisma.url.aggregate({
-        _sum: {
-          counter: true,
-        },
+      const stats = await this.store.totalStats();
+      this.logger.log("Stats retrieved", {
+        urls: stats.urls,
+        clicks: stats.clicks,
       });
-
-      const clicks = totalClicks._sum.counter || 0;
-      this.logger.log("Stats retrieved", { urls: totalUrls, clicks });
-      return {
-        urls: totalUrls,
-        clicks,
-      };
+      return stats;
     } catch (error) {
       this.logger.error(`Error getting stats from database: ${error}`);
       return null;
@@ -216,22 +191,11 @@ export class UrlService {
 
   public async getLinkStats(shortUrl: string): Promise<LinkStats | null> {
     try {
-      const url = await prisma.url.findUnique({
-        where: { short_url: shortUrl },
-      });
+      const url = await this.store.findByCode(shortUrl);
 
       if (!url) return null;
 
-      const clicks = await prisma.click.findMany({
-        where: { url_id: url.id },
-        select: {
-          referrer: true,
-          user_agent: true,
-          ip_hash: true,
-          country: true,
-          clicked_at: true,
-        },
-      });
+      const clicks = await this.store.clicksFor(url.id);
 
       const byDay = new Map<string, number>();
       const byReferrer = new Map<string, number>();
@@ -299,17 +263,7 @@ export class UrlService {
 
   public async getStatsByShortUrls(shortUrls: string[]): Promise<LinkSummary[]> {
     try {
-      const urls = await prisma.url.findMany({
-        where: { short_url: { in: shortUrls } },
-        select: {
-          long_url: true,
-          short_url: true,
-          counter: true,
-          created_at: true,
-          expires_at: true,
-          max_clicks: true,
-        },
-      });
+      const urls = await this.store.findManyByCodes(shortUrls);
 
       return urls.map((url) => ({
         shortUrl: url.short_url ?? "",
@@ -327,12 +281,7 @@ export class UrlService {
 
   public async isAliasAvailable(alias: string): Promise<boolean | null> {
     try {
-      const existing = await prisma.url.findUnique({
-        where: { short_url: alias },
-        select: { id: true },
-      });
-
-      return !existing;
+      return !(await this.store.codeExists(alias));
     } catch (error) {
       this.logger.error(
         `Error checking alias availability: { params: ${alias}, error: ${error}}`,
@@ -341,38 +290,13 @@ export class UrlService {
     }
   }
 
-  private async createWithGeneratedCode(
-    longUrl: string,
-    options: CreateShortUrlOptions,
-  ): Promise<UrlRecord> {
-    let lastError: unknown;
+  private generatedCandidates(id: bigint): string[] {
+    const code = encodeBase62(id);
+    const suffixes = Array.from({ length: CODE_ATTEMPTS - 1 }, () =>
+      this.newSuffix(),
+    );
 
-    for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt++) {
-      try {
-        return await prisma.$transaction(async (tx) => {
-          const record = await tx.url.create({
-            data: {
-              long_url: longUrl,
-              expires_at: options.expiresAt,
-              max_clicks: options.maxClicks,
-            },
-          });
-
-          const code = encodeBase62(record.id);
-          const candidate = attempt === 0 ? code : `${code}${randomSuffix()}`;
-
-          return await tx.url.update({
-            where: { id: record.id },
-            data: { short_url: candidate },
-          });
-        });
-      } catch (error) {
-        if (!isUniqueConstraintError(error)) throw error;
-        lastError = error;
-      }
-    }
-
-    throw new Error(`Could not generate a unique short code: ${lastError}`);
+    return [code, ...suffixes.map((suffix) => `${code}${suffix}`)];
   }
 
   private recordClick(urlId: bigint, context: ClickContext) {
@@ -381,14 +305,12 @@ export class UrlService {
 
   private async storeClick(urlId: bigint, context: ClickContext) {
     try {
-      await prisma.click.create({
-        data: {
-          url_id: urlId,
-          referrer: context.referrer?.slice(0, REFERRER_MAX_LENGTH),
-          user_agent: context.userAgent?.slice(0, USER_AGENT_MAX_LENGTH),
-          ip_hash: this.hashIp(context.ip),
-          country: context.country?.slice(0, 2).toUpperCase(),
-        },
+      await this.store.recordClick({
+        url_id: urlId,
+        referrer: context.referrer?.slice(0, REFERRER_MAX_LENGTH),
+        user_agent: context.userAgent?.slice(0, USER_AGENT_MAX_LENGTH),
+        ip_hash: this.hashIp(context.ip),
+        country: context.country?.slice(0, 2).toUpperCase(),
       });
     } catch (error) {
       this.logger.error(
