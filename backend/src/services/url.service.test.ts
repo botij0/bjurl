@@ -203,7 +203,7 @@ describe("UrlService", () => {
       });
     });
 
-    test("should return alias_taken when the alias already exists", async () => {
+    test("should return taken when the alias already exists", async () => {
       (prisma.url.create as jest.Mock).mockRejectedValue({ code: "P2002" });
 
       const result = await service.createShortUrl("https://example.com", {
@@ -211,7 +211,7 @@ describe("UrlService", () => {
       });
 
       expect(mockLogger.warn).toHaveBeenCalled();
-      expect(result).toEqual({ ok: false, reason: "alias_taken" });
+      expect(result).toEqual({ ok: false, reason: "taken" });
     });
 
     test("should create a url with a generated base62 code", async () => {

@@ -1,22 +1,16 @@
 import { toast } from "sonner";
 import { Link2, ArrowRight, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createShortUrl } from "@/actions/create-short-url.action";
-import { checkAlias, type AliasAvailability } from "@/actions/check-alias.action";
 import { addLinkToHistory } from "@/lib/link-history";
-import {
-  getAliasErrorMessage,
-  getExpiresAt,
-  type ExpiryOption,
-} from "@/lib/link-options";
+import { aliasReasonMessage, useAliasCheck } from "@/lib/alias";
+import { getExpiresAt, type ExpiryOption } from "@/lib/link-options";
 import { LinkOptionsPanel } from "./LinkOptionsPanel";
 import { ShortenedResult } from "./ShortenedResult";
 import type { urlResponse } from "@/interfaces/urlResponse.interface";
-
-const ALIAS_DEBOUNCE_MS = 400;
 
 const isValidUrl = (value: string): boolean => {
   const trimmed = value.trim();
@@ -37,43 +31,15 @@ export const UrlShortenerForm = () => {
 
   const [showOptions, setShowOptions] = useState(false);
   const [customAlias, setCustomAlias] = useState("");
-  const [checkingAlias, setCheckingAlias] = useState(false);
-  const [aliasAvailability, setAliasAvailability] =
-    useState<AliasAvailability | null>(null);
   const [expiry, setExpiry] = useState<ExpiryOption>("never");
   const [oneTime, setOneTime] = useState(false);
+  const { outcome } = useAliasCheck(customAlias);
 
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const alias = customAlias.trim();
-    if (!alias) return;
-
-    const controller = new AbortController();
-
-    const timeout = setTimeout(async () => {
-      const availability = await checkAlias(alias, controller.signal);
-      setAliasAvailability(availability);
-      setCheckingAlias(false);
-    }, ALIAS_DEBOUNCE_MS);
-
-    return () => {
-      controller.abort();
-      clearTimeout(timeout);
-    };
-  }, [customAlias]);
 
   const handleAliasChange = (value: string) => {
     setCustomAlias(value);
     setError("");
-
-    if (!value.trim()) {
-      setAliasAvailability(null);
-      setCheckingAlias(false);
-      return;
-    }
-
-    setCheckingAlias(true);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -95,12 +61,9 @@ export const UrlShortenerForm = () => {
     }
 
     const alias = customAlias.trim();
-    if (alias) {
-      const aliasError = getAliasErrorMessage(aliasAvailability);
-      if (aliasError) {
-        setError(aliasError);
-        return;
-      }
+    if (alias && outcome.state === "unavailable") {
+      setError(aliasReasonMessage(outcome.reason));
+      return;
     }
 
     setError("");
@@ -115,8 +78,8 @@ export const UrlShortenerForm = () => {
     setLoading(false);
 
     if (!response.ok) {
-      if (response.status === 409) {
-        setError(response.error);
+      if ("reason" in response) {
+        setError(aliasReasonMessage(response.reason));
         return;
       }
 
@@ -163,8 +126,7 @@ export const UrlShortenerForm = () => {
         onToggle={() => setShowOptions((value) => !value)}
         customAlias={customAlias}
         onCustomAliasChange={handleAliasChange}
-        checkingAlias={checkingAlias}
-        availability={aliasAvailability}
+        outcome={outcome}
         expiry={expiry}
         onExpiryChange={setExpiry}
         oneTime={oneTime}

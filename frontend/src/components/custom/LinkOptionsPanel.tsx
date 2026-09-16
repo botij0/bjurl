@@ -2,20 +2,15 @@ import { ChevronDown, Settings2 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import {
-  EXPIRY_OPTIONS,
-  getAliasErrorMessage,
-  type ExpiryOption,
-} from "@/lib/link-options";
-import type { AliasAvailability } from "@/actions/check-alias.action";
+import { aliasMessage, type AliasOutcome } from "@/lib/alias";
+import { EXPIRY_OPTIONS, type ExpiryOption } from "@/lib/link-options";
 
 interface LinkOptionsPanelProps {
   open: boolean;
   onToggle: () => void;
   customAlias: string;
   onCustomAliasChange: (value: string) => void;
-  checkingAlias: boolean;
-  availability: AliasAvailability | null;
+  outcome: AliasOutcome;
   expiry: ExpiryOption;
   onExpiryChange: (value: ExpiryOption) => void;
   oneTime: boolean;
@@ -27,15 +22,22 @@ export const LinkOptionsPanel = ({
   onToggle,
   customAlias,
   onCustomAliasChange,
-  checkingAlias,
-  availability,
+  outcome,
   expiry,
   onExpiryChange,
   oneTime,
   onOneTimeChange,
 }: LinkOptionsPanelProps) => {
-  const aliasError = getAliasErrorMessage(availability);
-  const aliasAvailable = Boolean(availability?.available && customAlias.trim());
+  const aliasError = aliasMessage(outcome);
+  const aliasAvailable = outcome.state === "available";
+  const aliasTone =
+    outcome.state === "unavailable"
+      ? "text-red-500"
+      : outcome.state === "failed"
+        ? "text-amber-600"
+        : aliasAvailable
+          ? "text-primary"
+          : "text-muted-foreground";
 
   return (
     <div className="mt-3 text-left">
@@ -71,17 +73,8 @@ export const LinkOptionsPanel = ({
               className="font-mono text-sm bg-background border-primary/30"
             />
             {customAlias.trim() && (
-              <p
-                className={cn(
-                  "text-xs",
-                  aliasError
-                    ? "text-red-500"
-                    : aliasAvailable
-                      ? "text-primary"
-                      : "text-muted-foreground",
-                )}
-              >
-                {checkingAlias
+              <p className={cn("text-xs", aliasTone)}>
+                {outcome.state === "checking"
                   ? "Checking availability..."
                   : aliasError ??
                     (aliasAvailable ? "Alias is available" : "Keep typing...")}

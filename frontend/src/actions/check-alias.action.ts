@@ -1,8 +1,9 @@
 import { urlApi } from "@/api/url.api";
+import type { AliasReason } from "@/lib/alias";
 
 export interface AliasAvailability {
   available: boolean;
-  reason: "invalid" | "reserved" | "taken" | null;
+  reason: AliasReason | null;
 }
 
 export const checkAlias = async (

@@ -1,0 +1,53 @@
+# bjurl — domain model
+
+The words this codebase uses. Architecture words (module, interface, seam, adapter) are not
+defined here; this file names the domain.
+
+## Link
+
+A persisted short-URL record: one long URL, an optional identifier (short code or alias), a
+click counter, an optional expiry, and an optional click limit. Stored in the `url` table;
+`expires_at` and `max_clicks` are independently optional.
+
+## Short code
+
+The identifier the system generates for a link: base62 of the link's row id, with a four
+hex-character suffix appended on collision, retried up to three times. Unique by construction.
+Stored in `url.short_url` together with aliases.
+
+## Alias
+
+An identifier the **user** chooses instead of the generated short code. A link created with an
+alias has `custom_alias = true`. Shares the `url.short_url` column with short codes, which is
+why uniqueness is one constraint over both.
+
+## Alias rule
+
+An alias must be 3–30 characters of letters, numbers, hyphens or underscores, and must not be
+reserved. Evaluated by `getAliasRejection` in `backend/src/config/aliases.ts`.
+
+## Reserved alias
+
+An alias the app cannot hand out because it would collide with a route the app serves: `api`,
+`stats`, `links`, `dashboard`, `admin`, `assets`, `static`, `healthz`, `favicon`, `robots`.
+Matched case-insensitively.
+
+## Alias verdict
+
+The answer to "what is this alias's status?" — exactly one of **invalid**, **reserved**,
+**taken**, **free**. It is the shared vocabulary across the HTTP seam: the same four words
+answer both "is this alias available?" (`GET /api/alias/:alias/available`) and "why was this
+alias refused?" (`POST /api/url`). User-facing wording for a verdict is owned by the frontend;
+the backend answers with the verdict alone.
+
+## Click
+
+One resolution of a link, recorded with referrer, user agent, a salted hash of the IP, and the
+country. Two representations exist today: `url.counter` (incremented on resolution) and a
+`click` row. See the architecture review for why that is a defect.
+
+## Link history
+
+The browser-local record of links created from this browser, kept in `localStorage` under
+`bjurl:links`, capped at 100 entries. A convenience list, not a source of truth: click counts
+in it come from the backend.

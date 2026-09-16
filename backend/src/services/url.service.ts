@@ -31,7 +31,7 @@ export interface ClickContext {
 
 export type CreateShortUrlResult =
   | { ok: true; url: UrlRecord }
-  | { ok: false; reason: "alias_taken" | "error" };
+  | { ok: false; reason: "taken" | "error" };
 
 export type ResolveUrlResult =
   | { ok: true; url: UrlRecord }
@@ -183,7 +183,7 @@ export class UrlService {
           customAlias: options.customAlias,
           error: `${error}`,
         });
-        return { ok: false, reason: "alias_taken" };
+        return { ok: false, reason: "taken" };
       }
 
       this.logger.error(

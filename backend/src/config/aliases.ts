@@ -13,17 +13,18 @@ export const RESERVED_ALIASES = new Set([
   "robots",
 ]);
 
-export type AliasRejection = "invalid" | "reserved" | "taken";
+export type AliasVerdict = "invalid" | "reserved" | "taken" | "free";
 
-export const ALIAS_ERROR_MESSAGES: Record<AliasRejection, string> = {
-  invalid:
-    "Alias must be 3-30 characters using letters, numbers, hyphens or underscores",
-  reserved: "This alias is reserved",
-  taken: "This alias is already in use",
-};
-
-export const getAliasRejection = (alias: string): AliasRejection | null => {
+export const getAliasRejection = (
+  alias: string,
+): Exclude<AliasVerdict, "taken" | "free"> | null => {
   if (!ALIAS_REGEX.test(alias)) return "invalid";
   if (RESERVED_ALIASES.has(alias.toLowerCase())) return "reserved";
   return null;
+};
+
+export const getAliasVerdict = (alias: string, inUse: boolean): AliasVerdict => {
+  const rejection = getAliasRejection(alias);
+  if (rejection) return rejection;
+  return inUse ? "taken" : "free";
 };

@@ -1,35 +1,36 @@
-import { ALIAS_ERROR_MESSAGES, RESERVED_ALIASES, getAliasRejection } from "./aliases";
+import { RESERVED_ALIASES, getAliasVerdict } from "./aliases";
 
 describe("aliases", () => {
-  describe("getAliasRejection", () => {
-    test("should accept valid aliases", () => {
-      expect(getAliasRejection("abc")).toBeNull();
-      expect(getAliasRejection("my-link")).toBeNull();
-      expect(getAliasRejection("promo_2026")).toBeNull();
-      expect(getAliasRejection("A1b2C3")).toBeNull();
-      expect(getAliasRejection("a".repeat(30))).toBeNull();
+  describe("getAliasVerdict", () => {
+    test("should call a valid free alias free", () => {
+      expect(getAliasVerdict("abc", false)).toBe("free");
+      expect(getAliasVerdict("my-link", false)).toBe("free");
+      expect(getAliasVerdict("promo_2026", false)).toBe("free");
+      expect(getAliasVerdict("A1b2C3", false)).toBe("free");
+      expect(getAliasVerdict("a".repeat(30), false)).toBe("free");
     });
 
     test("should reject aliases with invalid format", () => {
-      expect(getAliasRejection("ab")).toBe("invalid");
-      expect(getAliasRejection("a".repeat(31))).toBe("invalid");
-      expect(getAliasRejection("hello world")).toBe("invalid");
-      expect(getAliasRejection("dot.alias")).toBe("invalid");
-      expect(getAliasRejection("slash/alias")).toBe("invalid");
+      expect(getAliasVerdict("ab", true)).toBe("invalid");
+      expect(getAliasVerdict("a".repeat(31), true)).toBe("invalid");
+      expect(getAliasVerdict("hello world", true)).toBe("invalid");
+      expect(getAliasVerdict("dot.alias", true)).toBe("invalid");
+      expect(getAliasVerdict("slash/alias", true)).toBe("invalid");
     });
 
     test("should reject reserved aliases regardless of case", () => {
       for (const alias of RESERVED_ALIASES) {
-        expect(getAliasRejection(alias.toUpperCase())).toBe("reserved");
+        expect(getAliasVerdict(alias.toUpperCase(), true)).toBe("reserved");
       }
     });
-  });
 
-  describe("ALIAS_ERROR_MESSAGES", () => {
-    test("should have a message per rejection reason", () => {
-      expect(ALIAS_ERROR_MESSAGES.invalid).toBeDefined();
-      expect(ALIAS_ERROR_MESSAGES.reserved).toBeDefined();
-      expect(ALIAS_ERROR_MESSAGES.taken).toBeDefined();
+    test("should call an in-use alias taken", () => {
+      expect(getAliasVerdict("promo", true)).toBe("taken");
+    });
+
+    test("should keep the rule ahead of use, so a reserved alias is never taken", () => {
+      expect(getAliasVerdict("api", true)).toBe("reserved");
+      expect(getAliasVerdict("ab", true)).toBe("invalid");
     });
   });
 });

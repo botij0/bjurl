@@ -39,21 +39,15 @@ describe("create-url.dto", () => {
       expect(result[1]?.custom_alias).toBeUndefined();
     });
 
-    test("should reject an alias with invalid characters", () => {
+    test("should leave the alias rule to the verdict", () => {
       const result = CreateUrlDto.create({ longUrl: URL, customAlias: "bad alias" });
-      expect(result[0]).toBe("Alias must be 3-30 characters using letters, numbers, hyphens or underscores");
-      expect(result[1]).toBeUndefined();
-    });
-
-    test("should reject a reserved alias", () => {
-      const result = CreateUrlDto.create({ longUrl: URL, customAlias: "API" });
-      expect(result[0]).toBe("This alias is reserved");
-      expect(result[1]).toBeUndefined();
+      expect(result[0]).toBeUndefined();
+      expect(result[1]?.custom_alias).toBe("bad alias");
     });
 
     test("should reject a non string alias", () => {
       const result = CreateUrlDto.create({ longUrl: URL, customAlias: 42 });
-      expect(result[0]).toBe("Alias must be 3-30 characters using letters, numbers, hyphens or underscores");
+      expect(result[0]).toBe("Custom alias must be a string");
       expect(result[1]).toBeUndefined();
     });
   });

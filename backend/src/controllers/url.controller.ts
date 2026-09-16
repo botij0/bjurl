@@ -4,7 +4,7 @@ import { UrlService, type ClickContext } from "../services/url.service";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
 import { buildLogger } from "../config/logger";
 import { envs } from "../config/envs";
-import { ALIAS_ERROR_MESSAGES, getAliasRejection } from "../config/aliases";
+import { getAliasRejection, getAliasVerdict } from "../config/aliases";
 
 const MAX_BATCH_SIZE = 100;
 
@@ -59,6 +59,17 @@ export class UrlController {
       return res.status(400).json({ error });
     }
 
+    if (createUrlDto!.custom_alias) {
+      const verdict = getAliasVerdict(createUrlDto!.custom_alias, false);
+      if (verdict !== "free") {
+        this.logger.warn("Alias refused", {
+          customAlias: createUrlDto!.custom_alias,
+          verdict,
+        });
+        return res.status(400).json({ reason: verdict });
+      }
+    }
+
     const result = await this.urlService.createShortUrl(createUrlDto!.long_url, {
       customAlias: createUrlDto!.custom_alias,
       expiresAt: createUrlDto!.expires_at,
@@ -66,8 +77,8 @@ export class UrlController {
     });
 
     if (!result.ok) {
-      if (result.reason === "alias_taken") {
-        return res.status(409).json({ error: ALIAS_ERROR_MESSAGES.taken });
+      if (result.reason === "taken") {
+        return res.status(409).json({ reason: "taken" });
       }
 
       return res.status(500).json({
@@ -135,20 +146,20 @@ export class UrlController {
     }
 
     const rejection = getAliasRejection(alias);
-    if (rejection === "invalid" || rejection === "reserved") {
-      return res.status(200).json({ available: false, reason: rejection });
-    }
+    const available = rejection ? false : await this.urlService.isAliasAvailable(alias);
 
-    const available = await this.urlService.isAliasAvailable(alias);
     if (available === null) {
       return res
         .status(500)
         .json({ error: "Something went wrong checking the alias" });
     }
 
-    return res
-      .status(200)
-      .json({ available, reason: available ? null : "taken" });
+    const verdict = getAliasVerdict(alias, !available);
+
+    return res.status(200).json({
+      available: verdict === "free",
+      reason: verdict === "free" ? null : verdict,
+    });
   };
 
   private getClickContext(req: Request): ClickContext {

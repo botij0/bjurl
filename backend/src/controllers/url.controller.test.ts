@@ -231,15 +231,45 @@ describe("UrlController", () => {
       ]);
       mockService.createShortUrl.mockResolvedValue({
         ok: false,
-        reason: "alias_taken",
+        reason: "taken",
       });
 
       await controller.createUrl(req, res);
 
       expect(res.status).toHaveBeenCalledWith(409);
-      expect(res.json).toHaveBeenCalledWith({
-        error: "This alias is already in use",
-      });
+      expect(res.json).toHaveBeenCalledWith({ reason: "taken" });
+    });
+
+    test("should return 400 with the verdict when the alias is invalid", async () => {
+      const req = mockRequest({ body: { longUrl: "https://example.com" } });
+      const res = mockResponse();
+
+      (CreateUrlDto.create as jest.Mock).mockReturnValue([
+        null,
+        { long_url: "https://example.com", custom_alias: "bad alias" },
+      ]);
+
+      await controller.createUrl(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ reason: "invalid" });
+      expect(mockService.createShortUrl).not.toHaveBeenCalled();
+    });
+
+    test("should return 400 with the verdict when the alias is reserved", async () => {
+      const req = mockRequest({ body: { longUrl: "https://example.com" } });
+      const res = mockResponse();
+
+      (CreateUrlDto.create as jest.Mock).mockReturnValue([
+        null,
+        { long_url: "https://example.com", custom_alias: "API" },
+      ]);
+
+      await controller.createUrl(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ reason: "reserved" });
+      expect(mockService.createShortUrl).not.toHaveBeenCalled();
     });
 
     test("should return 500 if service fails", async () => {

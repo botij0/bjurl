@@ -1,5 +1,3 @@
-import { ALIAS_ERROR_MESSAGES, getAliasRejection } from "../../config/aliases";
-
 export class CreateUrlDto {
   private constructor(
     public readonly long_url: string,
@@ -21,19 +19,16 @@ export class CreateUrlDto {
       return ["Please provide a valid URL (e.g. https://example.com)", undefined];
     }
 
-    let alias: string | undefined;
-    if (customAlias !== undefined && customAlias !== null && customAlias !== "") {
-      if (typeof customAlias !== "string") {
-        return [ALIAS_ERROR_MESSAGES.invalid, undefined];
-      }
-
-      const rejection = getAliasRejection(customAlias);
-      if (rejection) {
-        return [ALIAS_ERROR_MESSAGES[rejection], undefined];
-      }
-
-      alias = customAlias;
+    if (
+      customAlias !== undefined &&
+      customAlias !== null &&
+      customAlias !== "" &&
+      typeof customAlias !== "string"
+    ) {
+      return ["Custom alias must be a string", undefined];
     }
+
+    const alias: string | undefined = customAlias || undefined;
 
     let expires: Date | undefined;
     if (expiresAt !== undefined && expiresAt !== null && expiresAt !== "") {

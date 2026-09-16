@@ -1,5 +1,3 @@
-import type { AliasAvailability } from "@/actions/check-alias.action";
-
 export type ExpiryOption = "never" | "1h" | "24h" | "7d" | "30d";
 
 export const EXPIRY_OPTIONS: {
@@ -18,21 +16,4 @@ export const getExpiresAt = (option: ExpiryOption): string | undefined => {
   const ms = EXPIRY_OPTIONS.find((item) => item.value === option)?.ms;
   if (!ms) return undefined;
   return new Date(Date.now() + ms).toISOString();
-};
-
-export const getAliasErrorMessage = (
-  availability: AliasAvailability | null,
-): string | null => {
-  if (!availability || availability.available) return null;
-
-  switch (availability.reason) {
-    case "taken":
-      return "This alias is already in use";
-    case "reserved":
-      return "This alias is reserved";
-    case "invalid":
-      return "Use 3-30 letters, numbers, hyphens or underscores";
-    default:
-      return "This alias is not available";
-  }
 };

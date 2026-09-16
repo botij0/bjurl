@@ -64,10 +64,8 @@ describe("createShortUrl", () => {
     expect(body.expiresAt).toBeUndefined();
   });
 
-  test("should return the API error message and status", async () => {
-    urlApiMock.onPost("/url").reply(409, {
-      error: "This alias is already in use",
-    });
+  test("should return the refusal verdict when the alias is refused", async () => {
+    urlApiMock.onPost("/url").reply(409, { reason: "taken" });
 
     const response = await createShortUrl("https://test.com", {
       customAlias: "promo",
@@ -76,7 +74,21 @@ describe("createShortUrl", () => {
     expect(response).toEqual({
       ok: false,
       status: 409,
-      error: "This alias is already in use",
+      reason: "taken",
+    });
+  });
+
+  test("should return the API error message and status", async () => {
+    urlApiMock.onPost("/url").reply(400, {
+      error: "Expiration date must be in the future",
+    });
+
+    const response = await createShortUrl("https://test.com");
+
+    expect(response).toEqual({
+      ok: false,
+      status: 400,
+      error: "Expiration date must be in the future",
     });
   });
 

@@ -156,7 +156,7 @@ describe("UrlShortenerForm", () => {
       mockCreateShortUrl.mockResolvedValue({
         ok: false,
         status: 409,
-        error: "This alias is already in use",
+        reason: "taken",
       });
 
       render(<UrlShortenerForm />);
@@ -229,6 +229,30 @@ describe("UrlShortenerForm", () => {
         "This alias is already in use"
       );
       expect(mockCreateShortUrl).not.toHaveBeenCalled();
+    });
+
+    test("allows submit when the alias check failed", async () => {
+      mockCheckAlias.mockResolvedValue(null);
+      mockCreateShortUrl.mockResolvedValue(success("https://bjurl.test/promo"));
+
+      render(<UrlShortenerForm />);
+      fireEvent.click(screen.getByRole("button", { name: /options/i }));
+      fireEvent.change(screen.getByLabelText(/custom alias/i), {
+        target: { value: "promo" },
+      });
+      await screen.findByText(/could not check this alias/i);
+
+      await act(async () => {
+        fireEvent.change(screen.getByPlaceholderText(/paste your long url/i), {
+          target: { value: "https://example.com" },
+        });
+        fireEvent.click(screen.getByRole("button", { name: /^shorten$/i }));
+      });
+
+      expect(mockCreateShortUrl).toHaveBeenCalledWith(
+        "https://example.com",
+        expect.objectContaining({ customAlias: "promo" })
+      );
     });
 
     test("sends alias, expiration and one-time options", async () => {
