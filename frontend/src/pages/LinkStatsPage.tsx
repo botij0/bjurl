@@ -22,11 +22,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/custom/ThemeToggle";
-import { getLinkStats } from "@/actions/get-link-stats.action";
+import { getLinkStats } from "@/api/url-client";
 import { getShortCode } from "@/lib/short-code";
-import { formatDateTime, isExpired } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
+import { linkStatus } from "@/lib/link-status";
 import { getLinkHistory } from "@/lib/link-history";
 import type { LinkStats } from "@/interfaces/linkStats.interface";
+import type { UrlOutcome } from "@/api/url-client";
 
 interface BreakdownItem {
   label: string;
@@ -103,15 +105,15 @@ export const LinkStatsPage = () => {
   const { shortUrl = "" } = useParams();
   const [result, setResult] = useState<{
     code: string;
-    stats: LinkStats | null;
+    outcome: UrlOutcome<LinkStats>;
   } | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    getLinkStats(shortUrl).then((data) => {
+    getLinkStats(shortUrl).then((outcome) => {
       if (!active) return;
-      setResult({ code: shortUrl, stats: data });
+      setResult({ code: shortUrl, outcome });
     });
 
     return () => {
@@ -119,8 +121,13 @@ export const LinkStatsPage = () => {
     };
   }, [shortUrl]);
 
-  const loading = result?.code !== shortUrl;
-  const stats = result?.code === shortUrl ? result.stats : null;
+  const outcome = result?.code === shortUrl ? result.outcome : null;
+  const stats = outcome?.ok ? outcome.data : null;
+  const failed = outcome !== null && !outcome.ok && outcome.kind === "error";
+  const status = linkStatus(
+    { expiresAt: stats?.expiresAt, maxClicks: stats?.maxClicks },
+    stats?.totalClicks ?? 0,
+  );
 
   const historyEntry = getLinkHistory().find(
     (entry) => getShortCode(entry.shortUrl) === shortUrl,
@@ -141,10 +148,21 @@ export const LinkStatsPage = () => {
           <ThemeToggle />
         </div>
 
-        {loading ? (
+        {outcome === null ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin" />
             <p className="text-sm">Loading analytics...</p>
+          </div>
+        ) : failed ? (
+          <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
+            <h1 className="text-2xl font-bold">Could not load analytics</h1>
+            <p className="text-sm text-muted-foreground max-w-md">
+              The link itself may work fine — this is only the analytics page
+              failing to load.
+            </p>
+            <Link to={`/stats/${encodeURIComponent(shortUrl)}`} reloadDocument>
+              <Button variant="outline">Try again</Button>
+            </Link>
           </div>
         ) : !stats ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
@@ -196,15 +214,7 @@ export const LinkStatsPage = () => {
               />
               <StatCard
                 label="Status"
-                value={
-                  isExpired(stats.expiresAt)
-                    ? "Expired"
-                    : stats.expiresAt
-                      ? `Until ${formatDateTime(stats.expiresAt)}`
-                      : stats.maxClicks
-                        ? `Max ${stats.maxClicks} clicks`
-                        : "Active"
-                }
+                value={status.summary}
                 icon={<CalendarClock className="w-3.5 h-3.5" />}
               />
             </div>

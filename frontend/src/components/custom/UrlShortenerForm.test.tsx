@@ -4,12 +4,9 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { UrlShortenerForm } from "./UrlShortenerForm";
 
 const mockCreateShortUrl = vi.fn();
-vi.mock("@/actions/create-short-url.action", () => ({
-  createShortUrl: (url: string, options?: unknown) => mockCreateShortUrl(url, options),
-}));
-
 const mockCheckAlias = vi.fn();
-vi.mock("@/actions/check-alias.action", () => ({
+vi.mock("@/api/url-client", () => ({
+  createShortUrl: (url: string, options?: unknown) => mockCreateShortUrl(url, options),
   checkAlias: (alias: string, signal?: AbortSignal) => mockCheckAlias(alias, signal),
 }));
 
@@ -132,7 +129,7 @@ describe("UrlShortenerForm", () => {
     test("shows toast and does not set result when createShortUrl fails", async () => {
       mockCreateShortUrl.mockResolvedValue({
         ok: false,
-        status: 500,
+        kind: "error",
         error: "Something went wrong, please try again",
       });
 
@@ -152,10 +149,10 @@ describe("UrlShortenerForm", () => {
     });
 
     test("shows inline error when the alias is taken", async () => {
-      mockCheckAlias.mockResolvedValue({ available: true, reason: null });
+      mockCheckAlias.mockResolvedValue({ ok: true, data: { available: true, reason: null } });
       mockCreateShortUrl.mockResolvedValue({
         ok: false,
-        status: 409,
+        kind: "refused",
         reason: "taken",
       });
 
@@ -195,7 +192,7 @@ describe("UrlShortenerForm", () => {
     });
 
     test("checks alias availability while typing", async () => {
-      mockCheckAlias.mockResolvedValue({ available: true, reason: null });
+      mockCheckAlias.mockResolvedValue({ ok: true, data: { available: true, reason: null } });
 
       render(<UrlShortenerForm />);
       fireEvent.click(screen.getByRole("button", { name: /options/i }));
@@ -209,7 +206,7 @@ describe("UrlShortenerForm", () => {
     });
 
     test("blocks submit when the alias is not available", async () => {
-      mockCheckAlias.mockResolvedValue({ available: false, reason: "taken" });
+      mockCheckAlias.mockResolvedValue({ ok: true, data: { available: false, reason: "taken" } });
 
       render(<UrlShortenerForm />);
       fireEvent.click(screen.getByRole("button", { name: /options/i }));
@@ -232,7 +229,7 @@ describe("UrlShortenerForm", () => {
     });
 
     test("allows submit when the alias check failed", async () => {
-      mockCheckAlias.mockResolvedValue(null);
+      mockCheckAlias.mockResolvedValue({ ok: false, kind: "error" });
       mockCreateShortUrl.mockResolvedValue(success("https://bjurl.test/promo"));
 
       render(<UrlShortenerForm />);
@@ -256,7 +253,7 @@ describe("UrlShortenerForm", () => {
     });
 
     test("sends alias, expiration and one-time options", async () => {
-      mockCheckAlias.mockResolvedValue({ available: true, reason: null });
+      mockCheckAlias.mockResolvedValue({ ok: true, data: { available: true, reason: null } });
       mockCreateShortUrl.mockResolvedValue(
         success("https://bjurl.test/promo")
       );

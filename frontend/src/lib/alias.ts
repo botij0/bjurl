@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import {
   checkAlias,
   type AliasAvailability,
-} from "@/actions/check-alias.action";
+  type UrlOutcome,
+} from "@/api/url-client";
 
 export type AliasReason = "invalid" | "reserved" | "taken";
 
@@ -17,7 +18,7 @@ export type AliasOutcome =
 export type AliasCheck = (
   alias: string,
   signal?: AbortSignal,
-) => Promise<AliasAvailability | null>;
+) => Promise<UrlOutcome<AliasAvailability>>;
 
 const DEBOUNCE_MS = 400;
 
@@ -40,6 +41,14 @@ export const aliasMessage = (outcome: AliasOutcome): string | null => {
   return null;
 };
 
+const aliasOutcomeOf = (result: UrlOutcome<AliasAvailability>): AliasOutcome => {
+  if (!result.ok) return { state: "failed" };
+
+  return result.data.available
+    ? { state: "available" }
+    : { state: "unavailable", reason: result.data.reason ?? "taken" };
+};
+
 export const useAliasCheck = (value: string, check: AliasCheck = checkAlias) => {
   const alias = value.trim();
   const [result, setResult] = useState<{
@@ -59,17 +68,10 @@ export const useAliasCheck = (value: string, check: AliasCheck = checkAlias) => 
     const controller = new AbortController();
 
     const timeout = setTimeout(() => {
-      void checkRef.current(alias, controller.signal).then((availability) => {
+      void checkRef.current(alias, controller.signal).then((result) => {
         if (!active) return;
 
-        setResult({
-          alias,
-          outcome: !availability
-            ? { state: "failed" }
-            : availability.available
-              ? { state: "available" }
-              : { state: "unavailable", reason: availability.reason ?? "taken" },
-        });
+        setResult({ alias, outcome: aliasOutcomeOf(result) });
       });
     }, DEBOUNCE_MS);
 

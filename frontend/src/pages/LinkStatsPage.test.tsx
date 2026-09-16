@@ -7,7 +7,7 @@ import { LinkStatsPage } from "./LinkStatsPage";
 import type { LinkStats } from "@/interfaces/linkStats.interface";
 
 const mockGetLinkStats = vi.fn();
-vi.mock("@/actions/get-link-stats.action", () => ({
+vi.mock("@/api/url-client", () => ({
   getLinkStats: (shortUrl: string) => mockGetLinkStats(shortUrl),
 }));
 
@@ -62,7 +62,7 @@ describe("LinkStatsPage", () => {
   });
 
   test("should render the link analytics", async () => {
-    mockGetLinkStats.mockResolvedValue(stats);
+    mockGetLinkStats.mockResolvedValue({ ok: true, data: stats });
 
     renderPage();
 
@@ -79,7 +79,7 @@ describe("LinkStatsPage", () => {
   });
 
   test("should show a not found state", async () => {
-    mockGetLinkStats.mockResolvedValue(null);
+    mockGetLinkStats.mockResolvedValue({ ok: false, kind: "not_found" });
 
     renderPage("missing");
 
@@ -89,13 +89,16 @@ describe("LinkStatsPage", () => {
 
   test("should show an empty state when there are no clicks", async () => {
     mockGetLinkStats.mockResolvedValue({
-      ...stats,
-      totalClicks: 0,
-      uniqueClicks: 0,
-      clicksByDay: [],
-      topReferrers: [],
-      topDevices: [],
-      topCountries: [],
+      ok: true,
+      data: {
+        ...stats,
+        totalClicks: 0,
+        uniqueClicks: 0,
+        clicksByDay: [],
+        topReferrers: [],
+        topDevices: [],
+        topCountries: [],
+      },
     });
 
     renderPage();
@@ -104,5 +107,27 @@ describe("LinkStatsPage", () => {
       await screen.findByText(/no clicks yet/i),
     ).toBeDefined();
     expect(screen.getByText(/no referrer data yet/i)).toBeDefined();
+  });
+
+  test("should tell a failed load apart from a missing link", async () => {
+    mockGetLinkStats.mockResolvedValue({ ok: false, kind: "error" });
+
+    renderPage();
+
+    expect(await screen.findByText("Could not load analytics")).toBeDefined();
+    expect(screen.queryByText("Link not found")).toBeNull();
+    expect(screen.getByRole("button", { name: /try again/i })).toBeDefined();
+  });
+
+  test("should report the link status from one place", async () => {
+    mockGetLinkStats.mockResolvedValue({
+      ok: true,
+      data: { ...stats, maxClicks: 3 },
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Status")).toBeDefined();
+    expect(screen.getByText("Max 3 clicks")).toBeDefined();
   });
 });

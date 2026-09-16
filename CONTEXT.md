@@ -55,6 +55,12 @@ A resolution the link's expiry and click limit allowed through. Counted in `url.
 only the click-limit predicate reads. An admission is not a reported click: when writing a click
 fails, the admission still counts against the limit but leaves no row behind.
 
+## Link status
+
+The derived state of a link: whether its expiry has passed, whether its click limit is spent, and
+whether it is one-time. Owned by one module (`frontend/src/lib/link-status.ts`) so the dashboard,
+the stats page and the result card cannot disagree about the same link.
+
 ## Link history
 
 The browser-local record of links created from this browser, kept in `localStorage` under

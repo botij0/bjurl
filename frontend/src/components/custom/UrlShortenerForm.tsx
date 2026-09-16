@@ -4,7 +4,7 @@ import { useRef, useState, type KeyboardEvent } from "react";
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { createShortUrl } from "@/actions/create-short-url.action";
+import { createShortUrl } from "@/api/url-client";
 import { addLinkToHistory } from "@/lib/link-history";
 import { aliasReasonMessage, useAliasCheck } from "@/lib/alias";
 import { getExpiresAt, type ExpiryOption } from "@/lib/link-options";
@@ -78,7 +78,7 @@ export const UrlShortenerForm = () => {
     setLoading(false);
 
     if (!response.ok) {
-      if ("reason" in response) {
+      if (response.kind === "refused") {
         setError(aliasReasonMessage(response.reason));
         return;
       }

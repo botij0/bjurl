@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { formatDateTime } from "@/lib/format";
+import { linkStatus } from "@/lib/link-status";
 import { getShortCode } from "@/lib/short-code";
 import { QrCodePanel } from "./QrCodePanel";
 import type { urlResponse } from "@/interfaces/urlResponse.interface";
@@ -32,10 +34,9 @@ export const ShortenedResult = ({
   };
 
   const code = getShortCode(shortUrl);
-  const expiresLabel = expiresAt
-    ? new Date(expiresAt).toLocaleString()
-    : null;
-  const oneTime = maxClicks === 1;
+  const status = linkStatus({ expiresAt, maxClicks }, 0);
+  const expiresLabel = expiresAt ? formatDateTime(expiresAt) : null;
+  const oneTime = status.oneTime;
 
   return (
     <div className="mt-6 p-4 rounded-lg bg-secondary border border-primary/20 glow-border">

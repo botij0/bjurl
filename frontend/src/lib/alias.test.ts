@@ -1,10 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import type { AliasAvailability } from "@/actions/check-alias.action";
+import type { AliasAvailability, UrlOutcome } from "@/api/url-client";
 import { aliasMessage, aliasReasonMessage, useAliasCheck, type AliasCheck } from "./alias";
 
-const available: AliasAvailability = { available: true, reason: null };
+const available: UrlOutcome<AliasAvailability> = {
+  ok: true,
+  data: { available: true, reason: null },
+};
+
+const unavailable = (reason: AliasAvailability["reason"]): UrlOutcome<AliasAvailability> => ({
+  ok: true,
+  data: { available: false, reason },
+});
 
 describe("aliasReasonMessage", () => {
   test("should own the copy for every verdict", () => {
@@ -87,9 +95,7 @@ describe("useAliasCheck", () => {
   });
 
   test("should report the verdict for an unavailable alias", async () => {
-    const check = vi
-      .fn<AliasCheck>()
-      .mockResolvedValue({ available: false, reason: "reserved" });
+    const check = vi.fn<AliasCheck>().mockResolvedValue(unavailable("reserved"));
 
     const { result } = renderHook(
       ({ value }) => useAliasCheck(value, check),
@@ -107,7 +113,9 @@ describe("useAliasCheck", () => {
   });
 
   test("should report a failed check instead of pretending nothing happened", async () => {
-    const check = vi.fn<AliasCheck>().mockResolvedValue(null);
+    const check = vi
+      .fn<AliasCheck>()
+      .mockResolvedValue({ ok: false, kind: "error" });
 
     const { result } = renderHook(
       ({ value }) => useAliasCheck(value, check),
@@ -142,8 +150,8 @@ describe("useAliasCheck", () => {
   });
 
   test("should ignore a stale answer for an alias that is no longer typed", async () => {
-    let resolveStale: (value: AliasAvailability | null) => void = () => {};
-    const stale = new Promise<AliasAvailability | null>((resolve) => {
+    let resolveStale: (value: UrlOutcome<AliasAvailability>) => void = () => {};
+    const stale = new Promise<UrlOutcome<AliasAvailability>>((resolve) => {
       resolveStale = resolve;
     });
     const check = vi
@@ -168,7 +176,7 @@ describe("useAliasCheck", () => {
     expect(result.current.outcome).toEqual({ state: "available" });
 
     await act(async () => {
-      resolveStale({ available: false, reason: "taken" });
+      resolveStale(unavailable("taken"));
       await Promise.resolve();
     });
 

@@ -14,9 +14,10 @@ import {
 
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/custom/ThemeToggle";
-import { getBatchStats } from "@/actions/get-batch-stats.action";
+import { getBatchStats } from "@/api/url-client";
 import { getShortCode } from "@/lib/short-code";
-import { formatDateTime, isExpired } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
+import { linkStatus } from "@/lib/link-status";
 import {
   clearLinkHistory,
   getLinkHistory,
@@ -51,6 +52,7 @@ export const LinksDashboard = () => {
   const [summaries, setSummaries] = useState<Record<string, LinkSummary> | null>(
     null,
   );
+  const [countsFailed, setCountsFailed] = useState(false);
 
   useEffect(() => {
     const history = getLinkHistory();
@@ -59,11 +61,16 @@ export const LinksDashboard = () => {
     let active = true;
     const codes = history.map((entry) => getShortCode(entry.shortUrl));
 
-    getBatchStats(codes).then((links) => {
+    getBatchStats(codes).then((result) => {
       if (!active) return;
 
+      if (!result.ok) {
+        setCountsFailed(true);
+        return;
+      }
+
       const map: Record<string, LinkSummary> = {};
-      for (const link of links) {
+      for (const link of result.data) {
         map[link.shortUrl] = link;
       }
 
@@ -75,7 +82,7 @@ export const LinksDashboard = () => {
     };
   }, []);
 
-  const loading = entries.length > 0 && summaries === null;
+  const loading = entries.length > 0 && summaries === null && !countsFailed;
 
   const handleRemove = (shortUrl: string) => {
     setEntries(removeLinkFromHistory(shortUrl));
@@ -118,6 +125,13 @@ export const LinksDashboard = () => {
           )}
         </header>
 
+        {countsFailed && (
+          <p className="text-sm text-amber-600 mb-4">
+            Could not load click counts — the figures below are the last known
+            values.
+          </p>
+        )}
+
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin" />
@@ -139,10 +153,11 @@ export const LinksDashboard = () => {
             {entries.map((entry) => {
               const code = getShortCode(entry.shortUrl);
               const summary = summaries?.[code];
-              const expired = isExpired(entry.expiresAt);
-              const consumed =
-                entry.maxClicks !== null &&
-                (summary?.totalClicks ?? 0) >= entry.maxClicks;
+              const clicks = summary?.totalClicks ?? 0;
+              const status = linkStatus(
+                { expiresAt: entry.expiresAt, maxClicks: entry.maxClicks },
+                clicks,
+              );
 
               return (
                 <li
@@ -167,11 +182,13 @@ export const LinksDashboard = () => {
                     <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
                       <span>{formatDateTime(entry.createdAt)}</span>
                       {entry.expiresAt && (
-                        <span className={expired ? "text-red-500" : ""}>
-                          {expired ? "Expired" : `Expires ${formatDateTime(entry.expiresAt)}`}
+                        <span className={status.expired ? "text-red-500" : ""}>
+                          {status.expired
+                            ? "Expired"
+                            : `Expires ${formatDateTime(entry.expiresAt)}`}
                         </span>
                       )}
-                      {entry.maxClicks === 1 && (
+                      {status.oneTime && (
                         <span className="inline-flex items-center gap-1 text-accent">
                           <TimerReset className="w-3 h-3" />
                           One-time
@@ -179,10 +196,10 @@ export const LinksDashboard = () => {
                       )}
                       {entry.maxClicks !== null && entry.maxClicks > 1 && (
                         <span>
-                          {Math.min(summary?.totalClicks ?? 0, entry.maxClicks)}/{entry.maxClicks} clicks
+                          {Math.min(clicks, entry.maxClicks)}/{entry.maxClicks} clicks
                         </span>
                       )}
-                      {consumed && !expired && (
+                      {status.consumed && !status.expired && (
                         <span className="text-red-500">Limit reached</span>
                       )}
                     </div>

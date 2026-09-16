@@ -6,7 +6,7 @@ import { LinksDashboard } from "./LinksDashboard";
 import type { LinkSummary } from "@/interfaces/linkStats.interface";
 
 const mockGetBatchStats = vi.fn();
-vi.mock("@/actions/get-batch-stats.action", () => ({
+vi.mock("@/api/url-client", () => ({
   getBatchStats: (shortUrls: string[]) => mockGetBatchStats(shortUrls),
 }));
 
@@ -68,7 +68,7 @@ describe("LinksDashboard", () => {
 
   test("should list the stored links with click counts", async () => {
     localStorage.setItem("bjurl:links", JSON.stringify(history));
-    mockGetBatchStats.mockResolvedValue(summaries);
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
 
     renderDashboard();
 
@@ -81,7 +81,7 @@ describe("LinksDashboard", () => {
 
   test("should link to the stats page for each link", async () => {
     localStorage.setItem("bjurl:links", JSON.stringify(history));
-    mockGetBatchStats.mockResolvedValue(summaries);
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
 
     renderDashboard();
 
@@ -91,7 +91,7 @@ describe("LinksDashboard", () => {
 
   test("should remove a link from the history", async () => {
     localStorage.setItem("bjurl:links", JSON.stringify(history));
-    mockGetBatchStats.mockResolvedValue(summaries);
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
 
     renderDashboard();
 
@@ -104,7 +104,7 @@ describe("LinksDashboard", () => {
 
   test("should clear the history", async () => {
     localStorage.setItem("bjurl:links", JSON.stringify(history));
-    mockGetBatchStats.mockResolvedValue(summaries);
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
 
     renderDashboard();
 
@@ -113,5 +113,25 @@ describe("LinksDashboard", () => {
 
     expect(screen.queryByText("https://bjurl.test/one")).toBeNull();
     expect(screen.getByText("No links yet")).toBeDefined();
+  });
+
+  test("should say so when the click counts could not be loaded", async () => {
+    localStorage.setItem("bjurl:links", JSON.stringify(history));
+    mockGetBatchStats.mockResolvedValue({ ok: false, kind: "error" });
+
+    renderDashboard();
+
+    expect(await screen.findByText(/could not load click counts/i)).toBeDefined();
+    expect(screen.getByText("https://bjurl.test/one")).toBeDefined();
+  });
+
+  test("should report a consumed link on the row", async () => {
+    localStorage.setItem("bjurl:links", JSON.stringify(history));
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
+
+    renderDashboard();
+
+    expect(await screen.findByText("Limit reached")).toBeDefined();
+    expect(screen.getByText("One-time")).toBeDefined();
   });
 });
