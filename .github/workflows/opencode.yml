@@ -30,4 +30,4 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
-          model: deepseek-v4.1-flash
+          model: opencode-go/GLM-5.3-Flash
