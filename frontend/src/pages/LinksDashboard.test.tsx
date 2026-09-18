@@ -87,6 +87,9 @@ describe("LinksDashboard", () => {
 
     const statsLinks = await screen.findAllByLabelText("View statistics");
     expect(statsLinks).toHaveLength(2);
+
+    const hrefs = statsLinks.map((link) => link.closest("a")?.getAttribute("href"));
+    expect(hrefs).toEqual(["/stats/one", "/stats/two"]);
   });
 
   test("should remove a link from the history", async () => {

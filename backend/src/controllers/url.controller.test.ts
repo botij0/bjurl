@@ -153,6 +153,8 @@ describe("UrlController", () => {
         ip: "10.0.0.1",
         country: "ES",
       });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: "Url abc not found" });
     });
   });
 
@@ -364,7 +366,14 @@ describe("UrlController", () => {
       await controller.getLinkStats(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(stats);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          shortUrl: "abc",
+          originalUrl: "https://example.com",
+          totalClicks: 3,
+          uniqueClicks: 2,
+        }),
+      );
     });
   });
 
