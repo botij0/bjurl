@@ -27,23 +27,46 @@ import {
 import type { LinkSummary } from "@/interfaces/linkStats.interface";
 
 const CopyButton = ({ value }: { value: string }) => {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+
+  useEffect(() => {
+    if (copyState === "idle") return;
+
+    const timeout = setTimeout(() => setCopyState("idle"), 2000);
+    return () => clearTimeout(timeout);
+  }, [copyState]);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
   };
 
   return (
-    <Button
-      size="icon-sm"
-      variant="ghost"
-      onClick={handleCopy}
-      aria-label="Copy short URL"
-    >
-      {copied ? <Check className="w-3.5 h-3.5 text-primary" /> : <Copy className="w-3.5 h-3.5" />}
-    </Button>
+    <>
+      <Button
+        size="icon-sm"
+        variant="ghost"
+        onClick={handleCopy}
+        aria-label="Copy short URL"
+      >
+        {copyState === "copied" ? (
+          <Check className="w-3.5 h-3.5 text-primary" />
+        ) : (
+          <Copy className="w-3.5 h-3.5" />
+        )}
+      </Button>
+      <span role="status" aria-live="polite" className="sr-only">
+        {copyState === "copied"
+          ? "Copied to clipboard"
+          : copyState === "failed"
+            ? "Could not copy to clipboard"
+            : ""}
+      </span>
+    </>
   );
 };
 
@@ -144,19 +167,19 @@ export const LinksDashboard = () => {
             <p className="text-sm text-muted-foreground">
               Links you shorten will appear here.
             </p>
-            <Link to="/">
-              <Button variant="outline">Shorten a link</Button>
-            </Link>
+            <Button asChild variant="outline">
+              <Link to="/">Shorten a link</Link>
+            </Button>
           </div>
         ) : (
           <ul className="space-y-3">
             {entries.map((entry) => {
               const code = getShortCode(entry.shortUrl);
               const summary = summaries?.[code];
-              const clicks = summary?.totalClicks ?? 0;
+              const clicks = summary?.totalClicks;
               const status = linkStatus(
                 { expiresAt: entry.expiresAt, maxClicks: entry.maxClicks },
-                clicks,
+                clicks ?? 0,
               );
 
               return (
@@ -194,12 +217,14 @@ export const LinksDashboard = () => {
                           One-time
                         </span>
                       )}
-                      {entry.maxClicks !== null && entry.maxClicks > 1 && (
-                        <span>
-                          {Math.min(clicks, entry.maxClicks)}/{entry.maxClicks} clicks
-                        </span>
-                      )}
-                      {status.consumed && !status.expired && (
+                      {entry.maxClicks !== null &&
+                        entry.maxClicks > 1 &&
+                        clicks !== undefined && (
+                          <span>
+                            {Math.min(clicks, entry.maxClicks)}/{entry.maxClicks} clicks
+                          </span>
+                        )}
+                      {clicks !== undefined && status.consumed && !status.expired && (
                         <span className="text-red-500">Limit reached</span>
                       )}
                     </div>
@@ -217,17 +242,25 @@ export const LinksDashboard = () => {
 
                     <CopyButton value={entry.shortUrl} />
 
-                    <a href={entry.shortUrl} target="_blank" rel="noopener noreferrer">
-                      <Button size="icon-sm" variant="ghost" aria-label="Open short URL">
+                    <Button asChild size="icon-sm" variant="ghost">
+                      <a
+                        href={entry.shortUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="Open short URL"
+                      >
                         <ExternalLink className="w-3.5 h-3.5" />
-                      </Button>
-                    </a>
+                      </a>
+                    </Button>
 
-                    <Link to={`/stats/${encodeURIComponent(code)}`}>
-                      <Button size="icon-sm" variant="ghost" aria-label="View statistics">
+                    <Button asChild size="icon-sm" variant="ghost">
+                      <Link
+                        to={`/stats/${encodeURIComponent(code)}`}
+                        aria-label="View statistics"
+                      >
                         <BarChart3 className="w-3.5 h-3.5" />
-                      </Button>
-                    </Link>
+                      </Link>
+                    </Button>
 
                     <Button
                       size="icon-sm"

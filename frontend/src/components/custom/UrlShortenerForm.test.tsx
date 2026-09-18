@@ -191,6 +191,28 @@ describe("UrlShortenerForm", () => {
       expect(screen.getByLabelText(/one-time link/i)).toBeDefined();
     });
 
+    test("ties the options toggle and alias feedback to their targets", () => {
+      render(<UrlShortenerForm />);
+
+      const toggle = screen.getByRole("button", { name: /options/i });
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      expect(toggle.getAttribute("aria-controls")).toBe("link-options-panel");
+
+      fireEvent.click(toggle);
+
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      expect(document.getElementById("link-options-panel")).toBeDefined();
+
+      const aliasInput = screen.getByLabelText(/custom alias/i);
+      expect(aliasInput.getAttribute("aria-describedby")).toBe(
+        "custom-alias-feedback",
+      );
+
+      const feedback = document.getElementById("custom-alias-feedback");
+      expect(feedback?.getAttribute("aria-live")).toBe("polite");
+      expect(feedback?.getAttribute("role")).toBe("status");
+    });
+
     test("checks alias availability while typing", async () => {
       mockCheckAlias.mockResolvedValue({ ok: true, data: { available: true, reason: null } });
 
