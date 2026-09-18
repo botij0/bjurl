@@ -1,4 +1,7 @@
+import { createHash } from "crypto";
+
 import { buildLogger } from "../config/logger";
+import { envs } from "../config/envs";
 import { InMemoryLinkStore } from "../data/in-memory-link-store";
 import { UrlService } from "./url.service";
 
@@ -111,6 +114,52 @@ describe("UrlService", () => {
           ip_hash: expect.not.stringContaining("10.0.0.1"),
         }),
       ]);
+    });
+
+    test("should truncate the referrer and user agent to five hundred characters", async () => {
+      const link = await seed("abc123");
+      const longReferrer = `https://ref.example/${"r".repeat(600)}`;
+      const longUserAgent = "u".repeat(600);
+
+      await service.getLongUrl("abc123", {
+        referrer: longReferrer,
+        userAgent: longUserAgent,
+      });
+      await flush();
+
+      const click = (await store.clicksFor(link.id))[0]!;
+
+      expect(click.referrer).toBe(longReferrer.slice(0, 500));
+      expect(click.referrer).toHaveLength(500);
+      expect(click.user_agent).toBe(longUserAgent.slice(0, 500));
+      expect(click.user_agent).toHaveLength(500);
+    });
+
+    test("should normalize the country to an upper-case two-letter code", async () => {
+      const link = await seed("abc123");
+
+      await service.getLongUrl("abc123", { country: "es" });
+      await flush();
+
+      const click = (await store.clicksFor(link.id))[0]!;
+      expect(click.country).toBe("ES");
+    });
+
+    test("should store a salted hash of the ip, never the ip itself", async () => {
+      const link = await seed("abc123");
+      const salted = createHash("sha256")
+        .update(`${envs.IP_HASH_SALT}:10.0.0.1`)
+        .digest("hex");
+      const unsalted = createHash("sha256").update("10.0.0.1").digest("hex");
+
+      await service.getLongUrl("abc123", { ip: "10.0.0.1" });
+      await flush();
+
+      const click = (await store.clicksFor(link.id))[0]!;
+
+      expect(click.ip_hash).toBe(salted);
+      expect(click.ip_hash).not.toBe(unsalted);
+      expect(click.ip_hash).not.toContain("10.0.0.1");
     });
 
     test("should not fail the redirect when click storage fails", async () => {
@@ -308,6 +357,36 @@ describe("UrlService", () => {
         expect.arrayContaining([
           { country: "US", count: 1 },
           { country: "ES", count: 1 },
+        ]),
+      );
+    });
+
+    test("should classify tablet user agents and unknown devices", async () => {
+      const link = await seed("abc123");
+
+      store.seedClick({
+        url_id: link.id,
+        referrer: null,
+        user_agent: "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)",
+        ip_hash: null,
+        country: null,
+        clicked_at: new Date("2026-09-10T10:00:00Z"),
+      });
+      store.seedClick({
+        url_id: link.id,
+        referrer: null,
+        user_agent: null,
+        ip_hash: null,
+        country: null,
+        clicked_at: new Date("2026-09-11T10:00:00Z"),
+      });
+
+      const result = await service.getLinkStats("abc123");
+
+      expect(result!.topDevices).toEqual(
+        expect.arrayContaining([
+          { device: "tablet", count: 1 },
+          { device: "unknown", count: 1 },
         ]),
       );
     });

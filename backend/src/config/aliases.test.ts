@@ -19,9 +19,24 @@ describe("aliases", () => {
     });
 
     test("should reject reserved aliases regardless of case", () => {
-      for (const alias of RESERVED_ALIASES) {
+      const reserved = [
+        "api",
+        "stats",
+        "links",
+        "dashboard",
+        "admin",
+        "assets",
+        "static",
+        "healthz",
+        "favicon",
+        "robots",
+      ];
+
+      for (const alias of reserved) {
         expect(getAliasVerdict(alias.toUpperCase(), true)).toBe("reserved");
       }
+
+      expect([...RESERVED_ALIASES].sort()).toEqual([...reserved].sort());
     });
 
     test("should call an in-use alias taken", () => {
