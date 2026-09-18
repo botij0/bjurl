@@ -1,5 +1,7 @@
 import { envs } from "./envs";
 
+jest.mock("dotenv/config");
+
 describe("envs.ts", () => {
   const originalIpHashSalt = process.env.IP_HASH_SALT;
   const originalPort = process.env.PORT;
