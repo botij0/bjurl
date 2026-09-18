@@ -13,10 +13,15 @@ export class CreateUrlDto {
       return ["Long Url is required", undefined];
     }
 
+    let parsed: URL;
     try {
-      new URL(longUrl);
+      parsed = new URL(longUrl);
     } catch {
       return ["Please provide a valid URL (e.g. https://example.com)", undefined];
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return ["Only http and https URLs are allowed", undefined];
     }
 
     if (
