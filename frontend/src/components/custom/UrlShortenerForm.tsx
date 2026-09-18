@@ -36,6 +36,7 @@ export const UrlShortenerForm = () => {
   const { outcome } = useAliasCheck(customAlias);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
 
   const handleAliasChange = (value: string) => {
     setCustomAlias(value);
@@ -48,6 +49,8 @@ export const UrlShortenerForm = () => {
   };
 
   const handleShortenUrl = async () => {
+    if (submittingRef.current) return;
+
     const url = inputRef.current?.value;
 
     if (!url?.trim()) {
@@ -66,29 +69,33 @@ export const UrlShortenerForm = () => {
       return;
     }
 
+    submittingRef.current = true;
     setError("");
     setLoading(true);
 
-    const response = await createShortUrl(url.trim(), {
-      customAlias: alias || undefined,
-      expiresAt: getExpiresAt(expiry),
-      maxClicks: oneTime ? 1 : undefined,
-    });
+    try {
+      const response = await createShortUrl(url.trim(), {
+        customAlias: alias || undefined,
+        expiresAt: getExpiresAt(expiry),
+        maxClicks: oneTime ? 1 : undefined,
+      });
 
-    setLoading(false);
+      if (!response.ok) {
+        if (response.kind === "refused") {
+          setError(aliasReasonMessage(response.reason));
+          return;
+        }
 
-    if (!response.ok) {
-      if (response.kind === "refused") {
-        setError(aliasReasonMessage(response.reason));
+        toast.error(response.error, { position: "top-center" });
         return;
       }
 
-      toast.error(response.error, { position: "top-center" });
-      return;
+      setResult(response.data);
+      addLinkToHistory(response.data);
+    } finally {
+      setLoading(false);
+      submittingRef.current = false;
     }
-
-    setResult(response.data);
-    addLinkToHistory(response.data);
   };
 
   return (
@@ -108,6 +115,7 @@ export const UrlShortenerForm = () => {
 
         <Button
           onClick={handleShortenUrl}
+          disabled={loading}
           className="h-14 px-8 glow-border border dark:border-accent/30 transition-all duration-300 dark:text-secondary-foreground dark:bg-background"
         >
           {loading ? (
