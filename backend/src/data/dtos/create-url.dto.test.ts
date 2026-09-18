@@ -26,6 +26,31 @@ describe("create-url.dto", () => {
     expect(result[1]).toBe(undefined);
   });
 
+  describe("scheme", () => {
+    test("should accept an https URL", () => {
+      const result = CreateUrlDto.create({ longUrl: "https://example.com/path" });
+      expect(result[0]).toBeUndefined();
+      expect(result[1]).toBeInstanceOf(CreateUrlDto);
+    });
+
+    test("should accept an http URL", () => {
+      const result = CreateUrlDto.create({ longUrl: "http://example.com" });
+      expect(result[0]).toBeUndefined();
+      expect(result[1]).toBeInstanceOf(CreateUrlDto);
+    });
+
+    test.each([
+      "javascript:alert(1)",
+      "data:text/html,<h1>x</h1>",
+      "file:///etc/passwd",
+      "ftp://example.com/x",
+    ])("should reject a non-http scheme: %s", (longUrl) => {
+      const result = CreateUrlDto.create({ longUrl });
+      expect(result[0]).toBe("Only http and https URLs are allowed");
+      expect(result[1]).toBeUndefined();
+    });
+  });
+
   describe("custom alias", () => {
     test("should accept a valid alias", () => {
       const result = CreateUrlDto.create({ longUrl: URL, customAlias: "my-link" });
