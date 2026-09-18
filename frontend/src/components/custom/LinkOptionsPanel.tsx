@@ -45,6 +45,7 @@ export const LinkOptionsPanel = ({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
+        aria-controls="link-options-panel"
         className="inline-flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
       >
         <Settings2 className="w-3.5 h-3.5" />
@@ -55,7 +56,10 @@ export const LinkOptionsPanel = ({
       </button>
 
       {open && (
-        <div className="mt-3 p-4 rounded-lg bg-secondary/60 border border-primary/20 grid gap-4 sm:grid-cols-2">
+        <div
+          id="link-options-panel"
+          className="mt-3 p-4 rounded-lg bg-secondary/60 border border-primary/20 grid gap-4 sm:grid-cols-2"
+        >
           <div className="space-y-1.5">
             <label
               htmlFor="custom-alias"
@@ -70,16 +74,22 @@ export const LinkOptionsPanel = ({
               maxLength={30}
               placeholder="my-link"
               onChange={(event) => onCustomAliasChange(event.target.value)}
+              aria-describedby="custom-alias-feedback"
               className="font-mono text-sm bg-background border-primary/30"
             />
-            {customAlias.trim() && (
-              <p className={cn("text-xs", aliasTone)}>
-                {outcome.state === "checking"
+            <p
+              id="custom-alias-feedback"
+              role="status"
+              aria-live="polite"
+              className={cn("text-xs", aliasTone)}
+            >
+              {!customAlias.trim()
+                ? ""
+                : outcome.state === "checking"
                   ? "Checking availability..."
                   : aliasError ??
                     (aliasAvailable ? "Alias is available" : "Keep typing...")}
-              </p>
-            )}
+            </p>
           </div>
 
           <div className="space-y-1.5">

@@ -26,7 +26,7 @@ import { getLinkStats } from "@/api/url-client";
 import { getShortCode } from "@/lib/short-code";
 import { formatDateTime } from "@/lib/format";
 import { linkStatus } from "@/lib/link-status";
-import { getLinkHistory } from "@/lib/link-history";
+import { getLinkHistory, type HistoryEntry } from "@/lib/link-history";
 import type { LinkStats } from "@/interfaces/linkStats.interface";
 import type { UrlOutcome } from "@/api/url-client";
 
@@ -107,12 +107,19 @@ export const LinkStatsPage = () => {
     code: string;
     outcome: UrlOutcome<LinkStats>;
   } | null>(null);
+  const [historyEntry, setHistoryEntry] = useState<HistoryEntry | null>(null);
 
   useEffect(() => {
     let active = true;
 
     getLinkStats(shortUrl).then((outcome) => {
       if (!active) return;
+
+      setHistoryEntry(
+        getLinkHistory().find(
+          (entry) => getShortCode(entry.shortUrl) === shortUrl,
+        ) ?? null,
+      );
       setResult({ code: shortUrl, outcome });
     });
 
@@ -129,9 +136,6 @@ export const LinkStatsPage = () => {
     stats?.totalClicks ?? 0,
   );
 
-  const historyEntry = getLinkHistory().find(
-    (entry) => getShortCode(entry.shortUrl) === shortUrl,
-  );
   const shortLink = historyEntry?.shortUrl ?? `/${shortUrl}`;
 
   return (

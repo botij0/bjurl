@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
   BarChart3,
@@ -24,13 +24,23 @@ export const ShortenedResult = ({
   maxClicks,
   customAlias,
 }: urlResponse) => {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [showQr, setShowQr] = useState(false);
 
+  useEffect(() => {
+    if (copyState === "idle") return;
+
+    const timeout = setTimeout(() => setCopyState("idle"), 2000);
+    return () => clearTimeout(timeout);
+  }, [copyState]);
+
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(shortUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(shortUrl);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
   };
 
   const code = getShortCode(shortUrl);
@@ -57,18 +67,34 @@ export const ShortenedResult = ({
             onClick={handleCopy}
             aria-label="Copy short URL"
           >
-            {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+            {copyState === "copied" ? (
+              <Check className="w-4 h-4 text-primary" />
+            ) : (
+              <Copy className="w-4 h-4" />
+            )}
           </Button>
-          <a href={shortUrl} target="_blank" rel="noopener noreferrer">
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+          <span role="status" aria-live="polite" className="sr-only">
+            {copyState === "copied"
+              ? "Copied to clipboard"
+              : copyState === "failed"
+                ? "Could not copy to clipboard"
+                : ""}
+          </span>
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+          >
+            <a
+              href={shortUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               aria-label="Open short URL"
             >
               <ExternalLink className="w-4 h-4" />
-            </Button>
-          </a>
+            </a>
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -79,16 +105,19 @@ export const ShortenedResult = ({
           >
             <QrCode className="w-4 h-4" />
           </Button>
-          <Link to={`/stats/${encodeURIComponent(code)}`}>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+          >
+            <Link
+              to={`/stats/${encodeURIComponent(code)}`}
               aria-label="View statistics"
             >
               <BarChart3 className="w-4 h-4" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -120,7 +149,7 @@ export const ShortenedResult = ({
       )}
 
       <p className="text-xs text-muted-foreground/70 font-mono truncate mt-5">
-        Original URl: {originalUrl}
+        Original URL: {originalUrl}
       </p>
 
       {showQr && <QrCodePanel key={shortUrl} url={shortUrl} />}
