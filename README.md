@@ -14,6 +14,16 @@ Url shortener fully functional with a modern, geometric design and tracking of s
 ![ExpressJs](https://img.shields.io/badge/Express%20js-000000?style=for-the-badge&logo=express&logoColor=white)
 ![PostgreSql](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
+## Features
+
+- Shorten URLs with generated base62 codes.
+- Custom aliases with live availability check.
+- Expiring links and one-time (single click) links.
+- QR code generation and download for every short link.
+- Per-link analytics: clicks over time, unique visitors, top referrers, devices and countries.
+- Anonymous link history stored in the browser (`/links`).
+- Global stats and a public per-link stats page (`/stats/:shortUrl`).
+
 ## Contents
 
 - [Contents](#contents)
@@ -45,6 +55,7 @@ cd backend && cp .env.template .env
 > - `POSTGRES_DB=URL`
 > - `POSTGRES_PORT=5432`
 > - `POSTGRES_PASSWORD=123456`
+> - `IP_HASH_SALT=change_me`
 
 > [!IMPORTANT]
 > `POSTGRES` variables need to be modified with your local databse or external database if you wish.

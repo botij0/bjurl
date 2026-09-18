@@ -14,9 +14,26 @@ datasource db {
 }
 
 model url {
+    id           BigInt    @id @default(autoincrement())
+    long_url     String    @db.VarChar
+    short_url    String?   @unique @db.VarChar
+    counter      Int       @default(0)
+    created_at   DateTime  @default(now()) @db.Timestamp()
+    expires_at   DateTime? @db.Timestamp()
+    max_clicks   Int?
+    custom_alias Boolean   @default(false)
+    clicks       click[]
+}
+
+model click {
     id         BigInt   @id @default(autoincrement())
-    long_url   String   @db.VarChar
-    short_url  String?  @unique @db.VarChar
-    counter    Int      @default(0)
-    created_at DateTime @default(now()) @db.Timestamp()
+    url_id     BigInt
+    url        url      @relation(fields: [url_id], references: [id], onDelete: Cascade)
+    clicked_at DateTime @default(now()) @db.Timestamp()
+    referrer   String?  @db.VarChar
+    user_agent String?  @db.VarChar
+    ip_hash    String?  @db.VarChar
+    country    String?  @db.VarChar(2)
+
+    @@index([url_id, clicked_at])
 }

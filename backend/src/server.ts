@@ -26,6 +26,7 @@ export class Server {
 
   async start() {
     // Middlewares
+    this.app.set("trust proxy", 1);
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
     this.app.use(cors());
@@ -50,6 +51,11 @@ export class Server {
 
     // Routes
     this.app.use(this.routes);
+
+    // Unknown API routes
+    this.app.use("/api", (req, res) => {
+      res.status(404).json({ error: "Not found" });
+    });
 
     // SPA fallback
     this.app.get(/(.*)/, (req, res) => {

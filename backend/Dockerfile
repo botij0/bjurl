@@ -29,6 +29,6 @@ COPY --from=build /app/package.json ./
 # Copy them into the container.
 COPY public ./public
 
-EXPOSE 3333
+EXPOSE 3334
 
 CMD ["bun", "run", "src/app.ts"]
