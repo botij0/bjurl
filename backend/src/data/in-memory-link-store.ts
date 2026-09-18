@@ -1,10 +1,12 @@
 import {
   LinkCodeConflictError,
+  summarizeClicks,
   type ClaimResult,
   type ClickEvent,
   type ClickRow,
   type CodeCandidates,
   type LinkRecord,
+  type LinkStatsAggregate,
   type LinkStore,
   type NewLink,
 } from "./link-store";
@@ -94,6 +96,48 @@ export class InMemoryLinkStore implements LinkStore {
     return this.clicks
       .filter((click) => click.url_id === linkId)
       .map(({ url_id, ...row }) => row);
+  }
+
+  public async linkStatsFor(linkId: bigint): Promise<LinkStatsAggregate> {
+    const rows = this.clicks.filter((click) => click.url_id === linkId);
+
+    const byDay = new Map<string, number>();
+    const byReferrer = new Map<string | null, number>();
+    const byUserAgent = new Map<string | null, number>();
+    const byCountry = new Map<string | null, number>();
+    const unique = new Set<string>();
+
+    for (const click of rows) {
+      const day = click.clicked_at.toISOString().slice(0, 10);
+      byDay.set(day, (byDay.get(day) ?? 0) + 1);
+      byReferrer.set(
+        click.referrer,
+        (byReferrer.get(click.referrer) ?? 0) + 1,
+      );
+      byUserAgent.set(
+        click.user_agent,
+        (byUserAgent.get(click.user_agent) ?? 0) + 1,
+      );
+      byCountry.set(click.country, (byCountry.get(click.country) ?? 0) + 1);
+      if (click.ip_hash) unique.add(click.ip_hash);
+    }
+
+    return summarizeClicks({
+      totalClicks: rows.length,
+      uniqueClicks: unique.size,
+      dayCounts: [...byDay.entries()].map(([date, count]) => ({ date, count })),
+      referrerCounts: [...byReferrer.entries()].map(([referrer, count]) => ({
+        referrer,
+        count,
+      })),
+      userAgentCounts: [...byUserAgent.entries()].map(
+        ([user_agent, count]) => ({ user_agent, count }),
+      ),
+      countryCounts: [...byCountry.entries()].map(([country, count]) => ({
+        country,
+        count,
+      })),
+    });
   }
 
   public async recordClick(click: ClickEvent): Promise<void> {
