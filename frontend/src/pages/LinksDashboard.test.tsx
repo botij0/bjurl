@@ -57,6 +57,10 @@ describe("LinksDashboard", () => {
   beforeEach(() => {
     localStorage.clear();
     mockGetBatchStats.mockReset();
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn() },
+    });
   });
 
   test("should show an empty state when there is no history", async () => {
@@ -133,5 +137,60 @@ describe("LinksDashboard", () => {
 
     expect(await screen.findByText("Limit reached")).toBeDefined();
     expect(screen.getByText("One-time")).toBeDefined();
+  });
+
+  test("should not claim click status when the counts are unavailable", async () => {
+    localStorage.setItem(
+      "bjurl:links",
+      JSON.stringify([
+        {
+          shortUrl: "https://bjurl.test/limited",
+          originalUrl: "https://limited.com",
+          createdAt: "2026-09-03T10:00:00.000Z",
+          expiresAt: null,
+          maxClicks: 5,
+        },
+      ]),
+    );
+    mockGetBatchStats.mockResolvedValue({ ok: false, kind: "error" });
+
+    renderDashboard();
+
+    expect(await screen.findByText(/could not load click counts/i)).toBeDefined();
+    expect(screen.queryByText(/\/5 clicks/)).toBeNull();
+    expect(screen.queryByText("Limit reached")).toBeNull();
+  });
+
+  test("should announce a successful copy", async () => {
+    localStorage.setItem("bjurl:links", JSON.stringify(history));
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
+    vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined);
+
+    renderDashboard();
+
+    await screen.findByText("https://bjurl.test/one");
+    fireEvent.click(screen.getAllByLabelText("Copy short URL")[0]);
+
+    expect(await screen.findByText("Copied to clipboard")).toBeDefined();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "https://bjurl.test/one",
+    );
+  });
+
+  test("should announce a failed copy without throwing", async () => {
+    localStorage.setItem("bjurl:links", JSON.stringify(history));
+    mockGetBatchStats.mockResolvedValue({ ok: true, data: summaries });
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValue(
+      new Error("denied"),
+    );
+
+    renderDashboard();
+
+    await screen.findByText("https://bjurl.test/one");
+    fireEvent.click(screen.getAllByLabelText("Copy short URL")[0]);
+
+    expect(
+      await screen.findByText("Could not copy to clipboard"),
+    ).toBeDefined();
   });
 });

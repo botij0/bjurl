@@ -11,6 +11,7 @@ function main() {
     port: envs.PORT,
     routes: AppRoutes.routes,
     publicPath: envs.PUBLIC_PATH,
+    corsOrigin: envs.CORS_ORIGIN,
   });
 
   server.start();
