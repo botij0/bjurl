@@ -55,7 +55,6 @@ export interface LinkSummary {
 }
 
 const CODE_ATTEMPTS = 3;
-const TOP_ITEMS = 5;
 const REFERRER_MAX_LENGTH = 500;
 const USER_AGENT_MAX_LENGTH = 500;
 
@@ -63,21 +62,6 @@ const randomSuffix = () => randomBytes(2).toString("hex");
 
 const truncate = (value: string, max: number): string =>
   value.length > max ? `${value.slice(0, max)}...` : value;
-
-const classifyDevice = (userAgent?: string | null): string => {
-  if (!userAgent) return "unknown";
-
-  const ua = userAgent.toLowerCase();
-  if (/bot|crawl|spider|slurp|facebookexternalhit|preview/.test(ua)) return "bot";
-  if (/ipad|tablet/.test(ua)) return "tablet";
-  if (/mobi|android|iphone|ipod/.test(ua)) return "mobile";
-  return "desktop";
-};
-
-const topEntries = (counts: Map<string, number>) =>
-  [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, TOP_ITEMS);
 
 export class UrlService {
   protected readonly logger;
@@ -195,61 +179,25 @@ export class UrlService {
 
       if (!url) return null;
 
-      const clicks = await this.store.clicksFor(url.id);
-
-      const byDay = new Map<string, number>();
-      const byReferrer = new Map<string, number>();
-      const byDevice = new Map<string, number>();
-      const byCountry = new Map<string, number>();
-      const uniqueVisitors = new Set<string>();
-
-      for (const click of clicks) {
-        const day = click.clicked_at.toISOString().slice(0, 10);
-        byDay.set(day, (byDay.get(day) ?? 0) + 1);
-
-        const referrer = click.referrer?.trim() || "direct";
-        byReferrer.set(referrer, (byReferrer.get(referrer) ?? 0) + 1);
-
-        const device = classifyDevice(click.user_agent);
-        byDevice.set(device, (byDevice.get(device) ?? 0) + 1);
-
-        if (click.country) {
-          byCountry.set(click.country, (byCountry.get(click.country) ?? 0) + 1);
-        }
-
-        if (click.ip_hash) uniqueVisitors.add(click.ip_hash);
-      }
-
-      const clicksByDay = [...byDay.entries()]
-        .sort((a, b) => a[0].localeCompare(b[0]))
-        .map(([date, count]) => ({ date, count }));
+      const aggregate = await this.store.linkStatsFor(url.id);
 
       const stats: LinkStats = {
         shortUrl: url.short_url ?? shortUrl,
         originalUrl: url.long_url,
-        totalClicks: clicks.length,
-        uniqueClicks: uniqueVisitors.size,
+        totalClicks: aggregate.totalClicks,
+        uniqueClicks: aggregate.uniqueClicks,
         createdAt: url.created_at,
         expiresAt: url.expires_at,
         maxClicks: url.max_clicks,
-        clicksByDay,
-        topReferrers: topEntries(byReferrer).map(([referrer, count]) => ({
-          referrer,
-          count,
-        })),
-        topDevices: topEntries(byDevice).map(([device, count]) => ({
-          device,
-          count,
-        })),
-        topCountries: topEntries(byCountry).map(([country, count]) => ({
-          country,
-          count,
-        })),
+        clicksByDay: aggregate.clicksByDay,
+        topReferrers: aggregate.topReferrers,
+        topDevices: aggregate.topDevices,
+        topCountries: aggregate.topCountries,
       };
 
       this.logger.log("Link stats retrieved", {
         shortUrl,
-        clicks: clicks.length,
+        clicks: aggregate.totalClicks,
       });
 
       return stats;

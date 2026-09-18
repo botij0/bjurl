@@ -324,6 +324,31 @@ describe("UrlService", () => {
       expect(result!.clicksByDay).toEqual([]);
     });
 
+    test("should attach the store aggregate to the link metadata", async () => {
+      const link = await seed("abc123", { max_clicks: 10 });
+      const aggregate = {
+        totalClicks: 9,
+        uniqueClicks: 4,
+        clicksByDay: [{ date: "2026-09-12", count: 9 }],
+        topReferrers: [{ referrer: "direct", count: 9 }],
+        topDevices: [{ device: "desktop", count: 9 }],
+        topCountries: [{ country: "ES", count: 9 }],
+      };
+      const spy = jest
+        .spyOn(store, "linkStatsFor")
+        .mockResolvedValue(aggregate);
+
+      expect(await service.getLinkStats("abc123")).toEqual({
+        shortUrl: "abc123",
+        originalUrl: "https://taken.example",
+        createdAt: link.created_at,
+        expiresAt: null,
+        maxClicks: 10,
+        ...aggregate,
+      });
+      expect(spy).toHaveBeenCalledWith(link.id);
+    });
+
     test("should return null if error occurs", async () => {
       jest.spyOn(store, "findByCode").mockRejectedValue(new Error("DB error"));
 
