@@ -36,6 +36,17 @@ describe("linkStatus", () => {
     expect(status.summary).toBe("Expired");
   });
 
+  test("should report the expiry and the click limit together when both apply", () => {
+    const status = linkStatus(
+      { expiresAt: "2026-10-01T00:00:00.000Z", maxClicks: 5 },
+      2,
+      now,
+    );
+
+    expect(status.expired).toBe(false);
+    expect(status.summary).toMatch(/^Until .+ · Max 5 clicks$/);
+  });
+
   test("should name the click limit", () => {
     const status = linkStatus({ expiresAt: null, maxClicks: 5 }, 2, now);
 

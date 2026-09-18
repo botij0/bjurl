@@ -5,6 +5,7 @@ import { buildLogger } from "../config/logger";
 import { envs } from "../config/envs";
 import {
   LinkCodeConflictError,
+  type ClaimResult,
   type LinkRecord,
   type LinkStore,
   type NewLink,
@@ -98,7 +99,7 @@ export class UrlService {
     context: ClickContext = {},
   ): Promise<ResolveUrlResult> {
     try {
-      const claimed = await this.store.claimRedirect(shortUrl, new Date());
+      const claimed = await this.claimByCode(shortUrl);
 
       if (!claimed.ok) {
         if (claimed.reason === "gone") {
@@ -191,7 +192,7 @@ export class UrlService {
 
   public async getLinkStats(shortUrl: string): Promise<LinkStats | null> {
     try {
-      const url = await this.store.findByCode(shortUrl);
+      const url = await this.findLink(shortUrl);
 
       if (!url) return null;
 
@@ -261,7 +262,9 @@ export class UrlService {
     }
   }
 
-  public async getStatsByShortUrls(shortUrls: string[]): Promise<LinkSummary[]> {
+  public async getStatsByShortUrls(
+    shortUrls: string[],
+  ): Promise<LinkSummary[] | null> {
     try {
       const urls = await this.store.findManyByCodes(shortUrls);
 
@@ -280,7 +283,7 @@ export class UrlService {
       }));
     } catch (error) {
       this.logger.error(`Error getting batch stats: ${error}`);
-      return [];
+      return null;
     }
   }
 
@@ -293,6 +296,28 @@ export class UrlService {
       );
       return null;
     }
+  }
+
+  private async claimByCode(shortUrl: string): Promise<ClaimResult> {
+    const now = new Date();
+    const claimed = await this.store.claimRedirect(shortUrl, now);
+
+    if (claimed.ok || claimed.reason !== "not_found") return claimed;
+
+    const normalized = shortUrl.toLowerCase();
+    if (normalized === shortUrl) return claimed;
+
+    return this.store.claimRedirect(normalized, now);
+  }
+
+  private async findLink(shortUrl: string): Promise<LinkRecord | null> {
+    const link = await this.store.findByCode(shortUrl);
+    if (link) return link;
+
+    const normalized = shortUrl.toLowerCase();
+    if (normalized === shortUrl) return null;
+
+    return this.store.findByCode(normalized);
   }
 
   private generatedCandidates(id: bigint): string[] {

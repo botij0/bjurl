@@ -2,6 +2,7 @@ import type { UrlService } from "../services/url.service";
 import { UrlController } from "./url.controller";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
 import { buildLogger } from "../config/logger";
+import { envs } from "../config/envs";
 
 jest.mock("../data/dtos/create-url.dto");
 jest.mock("../config/logger");
@@ -137,7 +138,6 @@ describe("UrlController", () => {
       const get = jest.fn((header: string) => {
         if (header === "referer") return "https://google.com";
         if (header === "user-agent") return "jest-agent";
-        if (header === "cf-ipcountry") return "ES";
         return undefined;
       });
       const req = mockRequest({ params: { shortUrl: "abc" }, get });
@@ -151,8 +151,47 @@ describe("UrlController", () => {
         referrer: "https://google.com",
         userAgent: "jest-agent",
         ip: "10.0.0.1",
-        country: "ES",
+        country: undefined,
       });
+    });
+
+    test("should ignore a forged cf-ipcountry header by default", async () => {
+      const get = jest.fn((header: string) =>
+        header === "cf-ipcountry" ? "ES" : undefined,
+      );
+      const req = mockRequest({ params: { shortUrl: "abc" }, get });
+      const res = mockResponse();
+
+      mockService.getLongUrl.mockResolvedValue({ ok: false, reason: "not_found" });
+
+      await controller.getUrl(req, res);
+
+      expect(mockService.getLongUrl).toHaveBeenCalledWith(
+        "abc",
+        expect.objectContaining({ country: undefined }),
+      );
+    });
+
+    test("should trust cf-ipcountry only when the deployment opts in", async () => {
+      const get = jest.fn((header: string) =>
+        header === "cf-ipcountry" ? "ES" : undefined,
+      );
+      const req = mockRequest({ params: { shortUrl: "abc" }, get });
+      const res = mockResponse();
+
+      mockService.getLongUrl.mockResolvedValue({ ok: false, reason: "not_found" });
+      envs.TRUST_CF_IPCOUNTRY = true;
+
+      try {
+        await controller.getUrl(req, res);
+
+        expect(mockService.getLongUrl).toHaveBeenCalledWith(
+          "abc",
+          expect.objectContaining({ country: "ES" }),
+        );
+      } finally {
+        envs.TRUST_CF_IPCOUNTRY = false;
+      }
     });
   });
 
@@ -212,6 +251,43 @@ describe("UrlController", () => {
         expiresAt: null,
         maxClicks: null,
         customAlias: true,
+      });
+    });
+
+    test("should lowercase a custom alias before creating it", async () => {
+      const req = mockRequest({ body: { longUrl: "https://example.com" } });
+      const res = mockResponse();
+
+      (CreateUrlDto.create as jest.Mock).mockReturnValue([
+        null,
+        {
+          long_url: "https://example.com",
+          custom_alias: "Promo",
+          expires_at: undefined,
+          max_clicks: undefined,
+        },
+      ]);
+
+      mockService.createShortUrl.mockResolvedValue({
+        ok: true,
+        url: {
+          id: 1n,
+          long_url: "https://example.com",
+          short_url: "promo",
+          counter: 0,
+          created_at: new Date(),
+          expires_at: null,
+          max_clicks: null,
+          custom_alias: true,
+        },
+      });
+
+      await controller.createUrl(req, res);
+
+      expect(mockService.createShortUrl).toHaveBeenCalledWith("https://example.com", {
+        customAlias: "promo",
+        expiresAt: undefined,
+        maxClicks: undefined,
       });
     });
 
@@ -406,6 +482,20 @@ describe("UrlController", () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({ links });
     });
+
+    test("should surface a service failure instead of an empty list", async () => {
+      const req = mockRequest({ body: { shortUrls: ["abc"] } });
+      const res = mockResponse();
+
+      mockService.getStatsByShortUrls.mockResolvedValue(null);
+
+      await controller.getBatchStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        error: "Something went wrong getting the click counts",
+      });
+    });
   });
 
   describe("checkAlias", () => {
@@ -457,6 +547,18 @@ describe("UrlController", () => {
 
       await controller.checkAlias(req, res);
 
+      expect(res.json).toHaveBeenCalledWith({ available: true, reason: null });
+    });
+
+    test("should look up an alias case-insensitively", async () => {
+      const req = mockRequest({ params: { alias: "Promo" } });
+      const res = mockResponse();
+
+      mockService.isAliasAvailable.mockResolvedValue(true);
+
+      await controller.checkAlias(req, res);
+
+      expect(mockService.isAliasAvailable).toHaveBeenCalledWith("promo");
       expect(res.json).toHaveBeenCalledWith({ available: true, reason: null });
     });
 
