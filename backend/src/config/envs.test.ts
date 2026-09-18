@@ -1,6 +1,14 @@
 import { envs } from "./envs";
 
 describe("envs.ts", () => {
+  const originalIpHashSalt = process.env.IP_HASH_SALT;
+  const originalPort = process.env.PORT;
+
+  afterEach(() => {
+    process.env.IP_HASH_SALT = originalIpHashSalt;
+    process.env.PORT = originalPort;
+  });
+
   test("should return env options", () => {
     expect(envs).toEqual({
       PORT: 3333,
@@ -21,5 +29,35 @@ describe("envs.ts", () => {
     } catch (error) {
       expect(`${error}`).toContain('"PORT" should be a valid integer');
     }
+  });
+
+  test.each(["change_me", "bjurl", "REPLACE_WITH_RANDOM_SECRET"])(
+    "should reject the placeholder IP_HASH_SALT %s",
+    async (placeholder) => {
+      jest.resetModules();
+      process.env.IP_HASH_SALT = placeholder;
+
+      await expect(import("./envs")).rejects.toThrow(
+        '"IP_HASH_SALT" must be a random secret',
+      );
+    },
+  );
+
+  test("should reject a missing IP_HASH_SALT", async () => {
+    jest.resetModules();
+    delete process.env.IP_HASH_SALT;
+
+    await expect(import("./envs")).rejects.toThrow(
+      '"IP_HASH_SALT" is a required variable, but it was not set',
+    );
+  });
+
+  test("should reject an empty IP_HASH_SALT", async () => {
+    jest.resetModules();
+    process.env.IP_HASH_SALT = "";
+
+    await expect(import("./envs")).rejects.toThrow(
+      '"IP_HASH_SALT" is a required variable, but its value was empty',
+    );
   });
 });
