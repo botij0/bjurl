@@ -2,11 +2,13 @@ import { PrismaClient } from "../generated/prisma/client";
 import { prisma } from "./postgres";
 import {
   LinkCodeConflictError,
+  summarizeClicks,
   type ClaimResult,
   type ClickEvent,
   type ClickRow,
   type CodeCandidates,
   type LinkRecord,
+  type LinkStatsAggregate,
   type LinkStore,
   type NewLink,
 } from "./link-store";
@@ -124,6 +126,66 @@ export class PrismaLinkStore implements LinkStore {
         country: true,
         clicked_at: true,
       },
+    });
+  }
+
+  public async linkStatsFor(linkId: bigint): Promise<LinkStatsAggregate> {
+    const [
+      totalClicks,
+      uniqueRows,
+      dayRows,
+      referrerRows,
+      userAgentRows,
+      countryRows,
+    ] = await Promise.all([
+      this.client.click.count({ where: { url_id: linkId } }),
+      this.client.$queryRaw<{ count: bigint }[]>`
+        SELECT COUNT(DISTINCT ip_hash) AS count
+        FROM "click"
+        WHERE url_id = ${linkId}
+      `,
+      this.client.$queryRaw<{ date: string; count: bigint }[]>`
+        SELECT to_char(clicked_at, 'YYYY-MM-DD') AS date, COUNT(*) AS count
+        FROM "click"
+        WHERE url_id = ${linkId}
+        GROUP BY to_char(clicked_at, 'YYYY-MM-DD')
+      `,
+      this.client.click.groupBy({
+        by: ["referrer"],
+        where: { url_id: linkId },
+        _count: { _all: true },
+      }),
+      this.client.click.groupBy({
+        by: ["user_agent"],
+        where: { url_id: linkId },
+        _count: { _all: true },
+      }),
+      this.client.click.groupBy({
+        by: ["country"],
+        where: { url_id: linkId },
+        _count: { _all: true },
+      }),
+    ]);
+
+    return summarizeClicks({
+      totalClicks,
+      uniqueClicks: Number(uniqueRows[0]?.count ?? 0),
+      dayCounts: dayRows.map((row) => ({
+        date: row.date,
+        count: Number(row.count),
+      })),
+      referrerCounts: referrerRows.map((row) => ({
+        referrer: row.referrer,
+        count: row._count._all,
+      })),
+      userAgentCounts: userAgentRows.map((row) => ({
+        user_agent: row.user_agent,
+        count: row._count._all,
+      })),
+      countryCounts: countryRows.map((row) => ({
+        country: row.country,
+        count: row._count._all,
+      })),
     });
   }
 
