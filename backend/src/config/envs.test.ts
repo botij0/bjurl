@@ -8,6 +8,7 @@ describe("envs.ts", () => {
       BASE_URL: "https://test.com",
       PUBLIC_PATH: "public",
       IP_HASH_SALT: "test-salt",
+      TRUST_CF_IPCOUNTRY: false,
     });
   });
 

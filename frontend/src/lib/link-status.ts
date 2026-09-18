@@ -20,13 +20,15 @@ export const linkStatus = (
   );
   const consumed = maxClicks !== null && clicks >= maxClicks;
 
+  const clauses: string[] = [];
+  if (expiresAt) clauses.push(`Until ${formatDateTime(expiresAt)}`);
+  if (maxClicks !== null) clauses.push(`Max ${maxClicks} clicks`);
+
   const summary = expired
     ? "Expired"
-    : expiresAt
-      ? `Until ${formatDateTime(expiresAt)}`
-      : maxClicks
-        ? `Max ${maxClicks} clicks`
-        : "Active";
+    : clauses.length > 0
+      ? clauses.join(" · ")
+      : "Active";
 
   return {
     expired,

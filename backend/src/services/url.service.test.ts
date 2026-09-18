@@ -138,6 +138,15 @@ describe("UrlService", () => {
       });
       expect(mockLogger.error).toHaveBeenCalled();
     });
+
+    test("should resolve a lowercase alias however it is cased", async () => {
+      await seed("promo");
+
+      expect(await service.getLongUrl("Promo")).toEqual({
+        ok: true,
+        url: expect.objectContaining({ short_url: "promo", counter: 1 }),
+      });
+    });
   });
 
   describe("createShortUrl", () => {
@@ -366,12 +375,12 @@ describe("UrlService", () => {
       );
     });
 
-    test("should return an empty array if error occurs", async () => {
+    test("should return null if error occurs", async () => {
       jest
         .spyOn(store, "findManyByCodes")
         .mockRejectedValue(new Error("DB error"));
 
-      expect(await service.getStatsByShortUrls(["abc"])).toEqual([]);
+      expect(await service.getStatsByShortUrls(["abc"])).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });

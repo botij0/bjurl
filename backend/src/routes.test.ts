@@ -78,6 +78,19 @@ describe("the alias verdict over the HTTP seam", () => {
     });
   });
 
+  test("answers the availability question case-insensitively", async () => {
+    (prisma.url.findUnique as jest.Mock).mockResolvedValue(null);
+
+    expect(await answer("Promo")).toEqual({
+      status: 200,
+      body: { available: true, reason: null },
+    });
+    expect(prisma.url.findUnique).toHaveBeenCalledWith({
+      where: { short_url: "promo" },
+      select: { id: true },
+    });
+  });
+
   test("answers the rule without touching the store", async () => {
     expect(await answer("stats")).toEqual({
       status: 200,

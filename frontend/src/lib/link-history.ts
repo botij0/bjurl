@@ -11,6 +11,28 @@ export interface HistoryEntry {
   maxClicks: number | null;
 }
 
+const toHistoryEntry = (value: unknown): HistoryEntry | null => {
+  if (typeof value !== "object" || value === null) return null;
+
+  const entry = value as Record<string, unknown>;
+
+  if (
+    typeof entry.shortUrl !== "string" ||
+    typeof entry.originalUrl !== "string" ||
+    typeof entry.createdAt !== "string"
+  ) {
+    return null;
+  }
+
+  return {
+    shortUrl: entry.shortUrl,
+    originalUrl: entry.originalUrl,
+    createdAt: entry.createdAt,
+    expiresAt: typeof entry.expiresAt === "string" ? entry.expiresAt : null,
+    maxClicks: typeof entry.maxClicks === "number" ? entry.maxClicks : null,
+  };
+};
+
 export const getLinkHistory = (): HistoryEntry[] => {
   if (typeof localStorage === "undefined") return [];
 
@@ -19,7 +41,12 @@ export const getLinkHistory = (): HistoryEntry[] => {
     if (!raw) return [];
 
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as HistoryEntry[]) : [];
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map(toHistoryEntry)
+      .filter((entry): entry is HistoryEntry => entry !== null)
+      .slice(0, MAX_ENTRIES);
   } catch {
     return [];
   }
