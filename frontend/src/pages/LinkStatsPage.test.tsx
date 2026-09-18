@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { createMemoryRouter, RouterProvider } from "react-router";
 import type { ReactNode } from "react";
 
@@ -70,7 +70,8 @@ describe("LinkStatsPage", () => {
     expect(mockGetLinkStats).toHaveBeenCalledWith("abc123");
     expect(screen.getByText("7")).toBeDefined();
     expect(screen.getByText("Unique visitors")).toBeDefined();
-    expect(screen.getAllByText("3").length).toBeGreaterThan(0);
+    const uniqueCard = screen.getByText("Unique visitors").parentElement!;
+    expect(within(uniqueCard).getByText("3")).toBeDefined();
     expect(screen.getByText("https://example.com/page")).toBeDefined();
     expect(screen.getByText("https://google.com")).toBeDefined();
     expect(screen.getByText("mobile")).toBeDefined();

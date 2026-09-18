@@ -73,4 +73,22 @@ describe("link-history", () => {
 
     expect(getLinkHistory()).toEqual([]);
   });
+
+  test("should cap the history at one hundred entries", () => {
+    for (let i = 0; i < 105; i++) {
+      addLinkToHistory({
+        shortUrl: `https://bjurl.test/${i}`,
+        originalUrl: `https://example.com/${i}`,
+      });
+    }
+
+    const history = getLinkHistory();
+
+    expect(history).toHaveLength(100);
+    expect(history[0].shortUrl).toBe("https://bjurl.test/104");
+    expect(history.at(-1)!.shortUrl).toBe("https://bjurl.test/5");
+    expect(history.some((entry) => entry.shortUrl === "https://bjurl.test/0")).toBe(
+      false,
+    );
+  });
 });
