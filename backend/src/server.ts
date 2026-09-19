@@ -11,6 +11,14 @@ interface Options {
   corsOrigin: string;
 }
 
+export function parseCorsOrigin(corsOrigin: string): "*" | string[] {
+  if (corsOrigin.trim() === "*") return "*";
+  return corsOrigin
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export class Server {
   private app = express();
   private readonly port: number;
@@ -36,8 +44,7 @@ export class Server {
     // Set it to a comma-separated allow-list to restrict cross-origin callers.
     this.app.use(
       cors({
-        origin:
-          this.corsOrigin === "*" ? "*" : this.corsOrigin.split(","),
+        origin: parseCorsOrigin(this.corsOrigin),
       }),
     );
 

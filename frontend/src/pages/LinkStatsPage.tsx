@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import {
   Area,
@@ -107,19 +107,19 @@ export const LinkStatsPage = () => {
     code: string;
     outcome: UrlOutcome<LinkStats>;
   } | null>(null);
-  const [historyEntry, setHistoryEntry] = useState<HistoryEntry | null>(null);
+  const historyEntry = useMemo<HistoryEntry | null>(
+    () =>
+      getLinkHistory().find(
+        (entry) => getShortCode(entry.shortUrl) === shortUrl,
+      ) ?? null,
+    [shortUrl],
+  );
 
   useEffect(() => {
     let active = true;
 
     getLinkStats(shortUrl).then((outcome) => {
       if (!active) return;
-
-      setHistoryEntry(
-        getLinkHistory().find(
-          (entry) => getShortCode(entry.shortUrl) === shortUrl,
-        ) ?? null,
-      );
       setResult({ code: shortUrl, outcome });
     });
 
