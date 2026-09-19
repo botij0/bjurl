@@ -46,6 +46,9 @@ describe("PrismaLinkStore", () => {
 
   beforeEach(() => {
     client = fakeClient();
+    client.$transaction.mockImplementation((queries: unknown) =>
+      Promise.all(queries as Promise<unknown>[]),
+    );
     store = new PrismaLinkStore(client as unknown as PrismaClient);
   });
 
@@ -172,6 +175,7 @@ describe("PrismaLinkStore", () => {
         data: { short_url: "code-1" },
       });
       expect(client.url.delete).not.toHaveBeenCalled();
+      expect(client.$transaction).not.toHaveBeenCalled();
       expect(created).toBe(link);
     });
 
@@ -352,6 +356,26 @@ describe("PrismaLinkStore", () => {
         _count: { _all: true },
       });
       expect(client.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(client.$transaction).toHaveBeenCalledTimes(1);
+      expect(client.$transaction.mock.calls[0]?.[0]).toHaveLength(6);
+    });
+
+    test("should bucket days in UTC, not session wall time", async () => {
+      client.click.count.mockResolvedValue(1);
+      client.$queryRaw
+        .mockResolvedValueOnce([{ count: 1n }])
+        .mockResolvedValueOnce([{ date: "2026-01-01", count: 1n }]);
+      client.click.groupBy.mockResolvedValue([]);
+
+      const stats = await store.linkStatsFor(9n);
+
+      const dayQuery = (
+        client.$queryRaw.mock.calls[1][0] as unknown as string[]
+      ).join("");
+      expect(dayQuery).toContain("timezone('UTC', clicked_at)");
+      // A click at 2026-01-01T00:30:00Z must land on the UTC date even when
+      // the session time zone sits behind UTC.
+      expect(stats.clicksByDay).toEqual([{ date: "2026-01-01", count: 1 }]);
     });
 
     test("should report an empty aggregate for a link without clicks", async () => {

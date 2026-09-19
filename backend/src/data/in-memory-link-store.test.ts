@@ -66,6 +66,24 @@ describe("InMemoryLinkStore", () => {
       });
     });
 
+    test("should bucket a near-midnight UTC click on the UTC date", async () => {
+      const link = await insert();
+
+      seed(store, link.id, {
+        referrer: null,
+        user_agent: null,
+        ip_hash: "hash-1",
+        country: null,
+        clicked_at: new Date("2026-09-11T00:30:00Z"),
+      });
+
+      expect(await store.linkStatsFor(link.id)).toEqual(
+        expect.objectContaining({
+          clicksByDay: [{ date: "2026-09-11", count: 1 }],
+        }),
+      );
+    });
+
     test("should report an empty aggregate for a link without clicks", async () => {
       const link = await insert();
 

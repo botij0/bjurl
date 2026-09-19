@@ -130,6 +130,41 @@ export class PrismaLinkStore implements LinkStore {
   }
 
   public async linkStatsFor(linkId: bigint): Promise<LinkStatsAggregate> {
+    // One transaction with a repeatable snapshot so the six reads cannot
+    // drift from each other; a click landing mid-read still skews breakdowns
+    // against the total, which is accepted for stats.
+    const totalClicksQuery = this.client.click.count({
+      where: { url_id: linkId },
+    });
+    const uniqueClicksQuery = this.client.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(DISTINCT ip_hash) AS count
+      FROM "click"
+      WHERE url_id = ${linkId}
+    `;
+    const clicksByDayQuery = this.client.$queryRaw<
+      { date: string; count: bigint }[]
+    >`
+      SELECT to_char(timezone('UTC', clicked_at), 'YYYY-MM-DD') AS date, COUNT(*) AS count
+      FROM "click"
+      WHERE url_id = ${linkId}
+      GROUP BY to_char(timezone('UTC', clicked_at), 'YYYY-MM-DD')
+    `;
+    const referrersQuery = this.client.click.groupBy({
+      by: ["referrer"],
+      where: { url_id: linkId },
+      _count: { _all: true },
+    });
+    const userAgentsQuery = this.client.click.groupBy({
+      by: ["user_agent"],
+      where: { url_id: linkId },
+      _count: { _all: true },
+    });
+    const countriesQuery = this.client.click.groupBy({
+      by: ["country"],
+      where: { url_id: linkId },
+      _count: { _all: true },
+    });
+
     const [
       totalClicks,
       uniqueRows,
@@ -137,35 +172,17 @@ export class PrismaLinkStore implements LinkStore {
       referrerRows,
       userAgentRows,
       countryRows,
-    ] = await Promise.all([
-      this.client.click.count({ where: { url_id: linkId } }),
-      this.client.$queryRaw<{ count: bigint }[]>`
-        SELECT COUNT(DISTINCT ip_hash) AS count
-        FROM "click"
-        WHERE url_id = ${linkId}
-      `,
-      this.client.$queryRaw<{ date: string; count: bigint }[]>`
-        SELECT to_char(clicked_at, 'YYYY-MM-DD') AS date, COUNT(*) AS count
-        FROM "click"
-        WHERE url_id = ${linkId}
-        GROUP BY to_char(clicked_at, 'YYYY-MM-DD')
-      `,
-      this.client.click.groupBy({
-        by: ["referrer"],
-        where: { url_id: linkId },
-        _count: { _all: true },
-      }),
-      this.client.click.groupBy({
-        by: ["user_agent"],
-        where: { url_id: linkId },
-        _count: { _all: true },
-      }),
-      this.client.click.groupBy({
-        by: ["country"],
-        where: { url_id: linkId },
-        _count: { _all: true },
-      }),
-    ]);
+    ] = await this.client.$transaction(
+      [
+        totalClicksQuery,
+        uniqueClicksQuery,
+        clicksByDayQuery,
+        referrersQuery,
+        userAgentsQuery,
+        countriesQuery,
+      ],
+      { isolationLevel: "RepeatableRead" },
+    );
 
     return summarizeClicks({
       totalClicks,
