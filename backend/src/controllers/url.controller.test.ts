@@ -153,6 +153,8 @@ describe("UrlController", () => {
         ip: "10.0.0.1",
         country: "ES",
       });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: "Url abc not found" });
     });
   });
 
