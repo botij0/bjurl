@@ -36,6 +36,8 @@ const fakeClient = () => ({
     count: jest.fn(),
     groupBy: jest.fn(),
   },
+  $queryRaw: jest.fn(),
+  $transaction: jest.fn(),
 });
 
 describe("PrismaLinkStore", () => {
@@ -44,6 +46,9 @@ describe("PrismaLinkStore", () => {
 
   beforeEach(() => {
     client = fakeClient();
+    client.$transaction.mockImplementation((queries: unknown) =>
+      Promise.all(queries as Promise<unknown>[]),
+    );
     store = new PrismaLinkStore(client as unknown as PrismaClient);
   });
 
@@ -170,6 +175,7 @@ describe("PrismaLinkStore", () => {
         data: { short_url: "code-1" },
       });
       expect(client.url.delete).not.toHaveBeenCalled();
+      expect(client.$transaction).not.toHaveBeenCalled();
       expect(created).toBe(link);
     });
 
@@ -276,6 +282,152 @@ describe("PrismaLinkStore", () => {
           clicked_at: true,
         },
       });
+    });
+  });
+
+  describe("linkStatsFor", () => {
+    test("should aggregate with grouped queries instead of loading rows", async () => {
+      client.click.count.mockResolvedValue(4);
+      client.$queryRaw
+        .mockResolvedValueOnce([{ count: 2n }])
+        .mockResolvedValueOnce([
+          { date: "2026-09-11", count: 3n },
+          { date: "2026-09-10", count: 1n },
+        ]);
+      client.click.groupBy
+        .mockResolvedValueOnce([
+          { referrer: "https://google.com", _count: { _all: 3 } },
+          { referrer: "   ", _count: { _all: 1 } },
+        ])
+        .mockResolvedValueOnce([
+          {
+            user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            _count: { _all: 2 },
+          },
+          {
+            user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile",
+            _count: { _all: 1 },
+          },
+          { user_agent: "Googlebot/2.1", _count: { _all: 1 } },
+        ])
+        .mockResolvedValueOnce([
+          { country: "ES", _count: { _all: 2 } },
+          { country: null, _count: { _all: 2 } },
+        ]);
+
+      const stats = await store.linkStatsFor(7n);
+
+      expect(stats).toEqual({
+        totalClicks: 4,
+        uniqueClicks: 2,
+        clicksByDay: [
+          { date: "2026-09-10", count: 1 },
+          { date: "2026-09-11", count: 3 },
+        ],
+        topReferrers: [
+          { referrer: "https://google.com", count: 3 },
+          { referrer: "direct", count: 1 },
+        ],
+        topDevices: [
+          { device: "desktop", count: 2 },
+          { device: "bot", count: 1 },
+          { device: "mobile", count: 1 },
+        ],
+        topCountries: [{ country: "ES", count: 2 }],
+      });
+
+      expect(client.click.findMany).not.toHaveBeenCalled();
+      expect(client.click.count).toHaveBeenCalledWith({
+        where: { url_id: 7n },
+      });
+      expect(client.click.groupBy).toHaveBeenNthCalledWith(1, {
+        by: ["referrer"],
+        where: { url_id: 7n },
+        _count: { _all: true },
+      });
+      expect(client.click.groupBy).toHaveBeenNthCalledWith(2, {
+        by: ["user_agent"],
+        where: { url_id: 7n },
+        _count: { _all: true },
+      });
+      expect(client.click.groupBy).toHaveBeenNthCalledWith(3, {
+        by: ["country"],
+        where: { url_id: 7n },
+        _count: { _all: true },
+      });
+      expect(client.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(client.$transaction).toHaveBeenCalledTimes(1);
+      expect(client.$transaction.mock.calls[0]?.[0]).toHaveLength(6);
+    });
+
+    test("should bucket days in UTC, not session wall time", async () => {
+      client.click.count.mockResolvedValue(1);
+      client.$queryRaw
+        .mockResolvedValueOnce([{ count: 1n }])
+        .mockResolvedValueOnce([{ date: "2026-01-01", count: 1n }]);
+      client.click.groupBy.mockResolvedValue([]);
+
+      const stats = await store.linkStatsFor(9n);
+
+      const dayQuery = (
+        client.$queryRaw.mock.calls[1][0] as unknown as string[]
+      ).join("");
+      expect(dayQuery).toContain("timezone('UTC', clicked_at)");
+      // A click at 2026-01-01T00:30:00Z must land on the UTC date even when
+      // the session time zone sits behind UTC.
+      expect(stats.clicksByDay).toEqual([{ date: "2026-01-01", count: 1 }]);
+    });
+
+    test("should report an empty aggregate for a link without clicks", async () => {
+      client.click.count.mockResolvedValue(0);
+      client.$queryRaw
+        .mockResolvedValueOnce([{ count: 0n }])
+        .mockResolvedValueOnce([]);
+      client.click.groupBy.mockResolvedValue([]);
+
+      expect(await store.linkStatsFor(7n)).toEqual({
+        totalClicks: 0,
+        uniqueClicks: 0,
+        clicksByDay: [],
+        topReferrers: [],
+        topDevices: [],
+        topCountries: [],
+      });
+    });
+
+    test("should cap each breakdown at five entries", async () => {
+      client.click.count.mockResolvedValue(6);
+      client.$queryRaw
+        .mockResolvedValueOnce([{ count: 6n }])
+        .mockResolvedValueOnce([{ date: "2026-09-10", count: 6n }]);
+      client.click.groupBy
+        .mockResolvedValueOnce(
+          ["r5", "r4", "r3", "r2", "r1", "r0"].map((referrer) => ({
+            referrer,
+            _count: { _all: 1 },
+          })),
+        )
+        .mockResolvedValueOnce([
+          { user_agent: null, _count: { _all: 6 } },
+        ])
+        .mockResolvedValueOnce(
+          ["c5", "c4", "c3", "c2", "c1", "c0"].map((country) => ({
+            country,
+            _count: { _all: 1 },
+          })),
+        );
+
+      const stats = await store.linkStatsFor(7n);
+
+      expect(stats.topReferrers).toEqual([
+        { referrer: "r0", count: 1 },
+        { referrer: "r1", count: 1 },
+        { referrer: "r2", count: 1 },
+        { referrer: "r3", count: 1 },
+        { referrer: "r4", count: 1 },
+      ]);
+      expect(stats.topCountries).toHaveLength(5);
+      expect(stats.topDevices).toEqual([{ device: "unknown", count: 6 }]);
     });
   });
 
