@@ -25,8 +25,14 @@ export const getLinkHistory = (): HistoryEntry[] => {
   }
 };
 
-const save = (entries: HistoryEntry[]) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+const save = (entries: HistoryEntry[]): void => {
+  if (typeof localStorage === "undefined") return;
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch {
+    return;
+  }
 };
 
 export const addLinkToHistory = (link: urlResponse): HistoryEntry[] => {
@@ -54,5 +60,11 @@ export const removeLinkFromHistory = (shortUrl: string): HistoryEntry[] => {
 };
 
 export const clearLinkHistory = (): void => {
-  localStorage.removeItem(STORAGE_KEY);
+  if (typeof localStorage === "undefined") return;
+
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    return;
+  }
 };

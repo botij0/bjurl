@@ -284,6 +284,38 @@ describe("UrlShortenerForm", () => {
     });
   });
 
+  describe("double submit guard", () => {
+    test("submits only once while a request is in flight", async () => {
+      let resolveRequest!: (value: unknown) => void;
+      mockCreateShortUrl.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveRequest = resolve;
+          })
+      );
+
+      render(<UrlShortenerForm />);
+      const input = screen.getByPlaceholderText(/paste your long url/i);
+      const button = screen.getByRole("button", { name: /shorten/i });
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: "https://example.com" } });
+        fireEvent.click(button);
+      });
+
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+
+      fireEvent.click(button);
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(mockCreateShortUrl).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        resolveRequest(success());
+      });
+    });
+  });
+
   describe("handleKeyDown", () => {
     test("submits when Enter is pressed in input", async () => {
       mockCreateShortUrl.mockResolvedValue(success("https://bjurl.test/ent"));
