@@ -14,6 +14,21 @@ Url shortener fully functional with a modern, geometric design and tracking of s
 ![ExpressJs](https://img.shields.io/badge/Express%20js-000000?style=for-the-badge&logo=express&logoColor=white)
 ![PostgreSql](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 
+## Contents
+
+- [Contents](#contents)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Execution](#execution)
+  - [Environment variables](#environment-variables)
+  - [Run App Docker Recommended](#run-app-docker-recommended)
+  - [Run app Manual](#run-app-manual)
+
+## Architecture
+
+<img width="4320" height="2392" alt="image" src="https://github.com/user-attachments/assets/20467dfb-e18d-4245-a72e-2acc7bc71ab1" />
+
+
 ## Features
 
 - Shorten URLs with generated base62 codes.
@@ -23,14 +38,6 @@ Url shortener fully functional with a modern, geometric design and tracking of s
 - Per-link analytics: clicks over time, unique visitors, top referrers, devices and countries.
 - Anonymous link history stored in the browser (`/links`).
 - Global stats and a public per-link stats page (`/stats/:shortUrl`).
-
-## Contents
-
-- [Contents](#contents)
-- [Execution](#execution)
-  - [Environment variables](#environment-variables)
-  - [Run App Docker Recommended](#run-app-docker-recommended)
-  - [Run app Manual](#run-app-manual)
 
 ## Execution
 
