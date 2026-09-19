@@ -22,6 +22,7 @@ const link = {
 const fakeClient = () => ({
   url: {
     findUnique: jest.fn(),
+    findFirst: jest.fn(),
     updateMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -67,12 +68,25 @@ describe("PrismaLinkStore", () => {
         where: { short_url: "abc" },
         select: { id: true },
       });
+      expect(client.url.findFirst).not.toHaveBeenCalled();
     });
 
     test("should report a free code", async () => {
       client.url.findUnique.mockResolvedValue(null);
+      client.url.findFirst.mockResolvedValue(null);
 
       expect(await store.codeExists("abc")).toBe(false);
+    });
+
+    test("should catch a different-cased alias via the insensitive fallback", async () => {
+      client.url.findUnique.mockResolvedValue(null);
+      client.url.findFirst.mockResolvedValue({ id: 1n });
+
+      expect(await store.codeExists("promo")).toBe(true);
+      expect(client.url.findFirst).toHaveBeenCalledWith({
+        where: { short_url: { equals: "promo", mode: "insensitive" } },
+        select: { id: true },
+      });
     });
   });
 
@@ -215,6 +229,29 @@ describe("PrismaLinkStore", () => {
       expect(client.url.findMany).toHaveBeenCalledWith({
         where: { short_url: { in: ["abc", "def"] } },
       });
+    });
+
+    test("should fall back to lowercase for a cased alias", async () => {
+      client.url.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([link]);
+
+      const result = await store.findManyByCodes(["Promo"]);
+
+      expect(result).toEqual([link]);
+      expect(client.url.findMany).toHaveBeenNthCalledWith(1, {
+        where: { short_url: { in: ["Promo"] } },
+      });
+      expect(client.url.findMany).toHaveBeenNthCalledWith(2, {
+        where: { short_url: { in: ["promo"] } },
+      });
+    });
+
+    test("should not double-query when every code is already lowercase", async () => {
+      client.url.findMany.mockResolvedValue([]);
+
+      expect(await store.findManyByCodes(["missing"])).toEqual([]);
+      expect(client.url.findMany).toHaveBeenCalledTimes(1);
     });
   });
 

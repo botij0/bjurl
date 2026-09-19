@@ -24,12 +24,19 @@ export class PrismaLinkStore implements LinkStore {
   }
 
   public async codeExists(code: string): Promise<boolean> {
-    const existing = await this.client.url.findUnique({
+    const exact = await this.client.url.findUnique({
       where: { short_url: code },
       select: { id: true },
     });
 
-    return existing !== null;
+    if (exact !== null) return true;
+
+    const insensitive = await this.client.url.findFirst({
+      where: { short_url: { equals: code, mode: "insensitive" } },
+      select: { id: true },
+    });
+
+    return insensitive !== null;
   }
 
   public async claimRedirect(code: string, now: Date): Promise<ClaimResult> {
@@ -92,7 +99,39 @@ export class PrismaLinkStore implements LinkStore {
   }
 
   public async findManyByCodes(codes: string[]): Promise<LinkRecord[]> {
-    return this.client.url.findMany({ where: { short_url: { in: codes } } });
+    const urls = await this.client.url.findMany({
+      where: { short_url: { in: codes } },
+    });
+
+    const found = new Set(urls.map((url) => url.short_url));
+    const fallback = [
+      ...new Set(
+        codes
+          .filter(
+            (code) =>
+              code.toLowerCase() !== code &&
+              !found.has(code) &&
+              !found.has(code.toLowerCase()),
+          )
+          .map((code) => code.toLowerCase()),
+      ),
+    ];
+
+    if (fallback.length === 0) return urls;
+
+    const extra = await this.client.url.findMany({
+      where: { short_url: { in: fallback } },
+    });
+
+    const seen = new Set(urls.map((url) => url.id));
+    for (const url of extra) {
+      if (!seen.has(url.id)) {
+        seen.add(url.id);
+        urls.push(url);
+      }
+    }
+
+    return urls;
   }
 
   public async totalStats(): Promise<{ urls: number; clicks: number }> {

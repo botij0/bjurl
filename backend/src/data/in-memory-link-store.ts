@@ -19,7 +19,12 @@ export class InMemoryLinkStore implements LinkStore {
   }
 
   public async codeExists(code: string): Promise<boolean> {
-    return this.links.some((link) => link.short_url === code);
+    return this.links.some(
+      (link) =>
+        link.short_url === code ||
+        (link.short_url !== null &&
+          link.short_url.toLowerCase() === code.toLowerCase()),
+    );
   }
 
   public async claimRedirect(code: string, now: Date): Promise<ClaimResult> {

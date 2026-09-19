@@ -115,7 +115,13 @@ export class UrlController {
       return res.status(400).json({ error: "Wrong Short Url" });
     }
 
-    const stats = await this.urlService.getLinkStats(shortUrl);
+    let stats;
+    try {
+      stats = await this.urlService.getLinkStats(shortUrl);
+    } catch (error) {
+      this.logger.error("Failed to load link stats", { shortUrl, error });
+      return res.status(500).json({ error: "Something went wrong getting stats" });
+    }
 
     if (!stats) {
       this.logger.warn("Short URL not found for stats", { shortUrl });

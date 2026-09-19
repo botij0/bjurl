@@ -442,6 +442,17 @@ describe("UrlController", () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(stats);
     });
+
+    test("should return 500 when the service throws", async () => {
+      const req = mockRequest({ params: { shortUrl: "abc" } });
+      const res = mockResponse();
+
+      mockService.getLinkStats.mockRejectedValue(new Error("DB error"));
+
+      await controller.getLinkStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+    });
   });
 
   describe("getBatchStats", () => {

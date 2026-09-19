@@ -191,11 +191,19 @@ export class UrlService {
   }
 
   public async getLinkStats(shortUrl: string): Promise<LinkStats | null> {
+    let url: LinkRecord | null;
     try {
-      const url = await this.findLink(shortUrl);
+      url = await this.findLink(shortUrl);
+    } catch (error) {
+      this.logger.error(
+        `Error getting link stats: { params: ${shortUrl}, error: ${error}}`,
+      );
+      throw error;
+    }
 
-      if (!url) return null;
+    if (!url) return null;
 
+    try {
       const clicks = await this.store.clicksFor(url.id);
 
       const byDay = new Map<string, number>();
@@ -258,7 +266,7 @@ export class UrlService {
       this.logger.error(
         `Error getting link stats: { params: ${shortUrl}, error: ${error}}`,
       );
-      return null;
+      throw error;
     }
   }
 
@@ -267,6 +275,31 @@ export class UrlService {
   ): Promise<LinkSummary[] | null> {
     try {
       const urls = await this.store.findManyByCodes(shortUrls);
+
+      const found = new Set(urls.map((url) => url.short_url));
+      const fallback = [
+        ...new Set(
+          shortUrls
+            .filter(
+              (code) =>
+                code.toLowerCase() !== code &&
+                !found.has(code) &&
+                !found.has(code.toLowerCase()),
+            )
+            .map((code) => code.toLowerCase()),
+        ),
+      ];
+
+      if (fallback.length > 0) {
+        const extra = await this.store.findManyByCodes(fallback);
+        const seen = new Set(urls.map((url) => url.id));
+        for (const url of extra) {
+          if (!seen.has(url.id)) {
+            seen.add(url.id);
+            urls.push(url);
+          }
+        }
+      }
 
       if (urls.length === 0) return [];
 
@@ -335,12 +368,16 @@ export class UrlService {
 
   private async storeClick(urlId: bigint, context: ClickContext) {
     try {
+      const rawCountry = context.country?.slice(0, 2).toUpperCase();
+      const country =
+        rawCountry && /^[A-Z]{2}$/.test(rawCountry) ? rawCountry : undefined;
+
       await this.store.recordClick({
         url_id: urlId,
         referrer: context.referrer?.slice(0, REFERRER_MAX_LENGTH),
         user_agent: context.userAgent?.slice(0, USER_AGENT_MAX_LENGTH),
         ip_hash: this.hashIp(context.ip),
-        country: context.country?.slice(0, 2).toUpperCase(),
+        country,
       });
     } catch (error) {
       this.logger.error(
