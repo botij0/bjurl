@@ -1,10 +1,12 @@
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import path from "node:path";
 
 import express from "express";
 
 import { prisma } from "./data/postgres";
 import { AppRoutes } from "./routes";
+import { UrlService } from "./services/url.service";
 
 jest.mock("./data/postgres", () => ({
   prisma: {
@@ -25,6 +27,12 @@ jest.mock("./config/logger", () => ({
 const app = express();
 app.use(express.json());
 app.use(AppRoutes.routes);
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+app.get(/(.*)/, (_req, res) => {
+  res.sendFile(path.join(__dirname, "../public/index.html"));
+});
 
 let server: Server;
 let baseUrl: string;
@@ -114,5 +122,49 @@ describe("the alias verdict over the HTTP seam", () => {
       status: 400,
       body: { error: "Please provide a valid URL (e.g. https://example.com)" },
     });
+  });
+});
+
+describe("the SPA fallback ordering", () => {
+  let getLongUrl: jest.SpyInstance;
+
+  beforeEach(() => {
+    getLongUrl = jest.spyOn(UrlService.prototype, "getLongUrl");
+  });
+
+  afterEach(() => {
+    getLongUrl.mockRestore();
+  });
+
+  test("serves the SPA for /links without resolving a short code", async () => {
+    const response = await fetch(`${baseUrl}/links`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("html");
+    expect(await response.text()).toContain('<div id="root">');
+    expect(getLongUrl).not.toHaveBeenCalled();
+  });
+
+  test("serves the SPA for / without resolving a short code", async () => {
+    const response = await fetch(`${baseUrl}/`);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('<div id="root">');
+    expect(getLongUrl).not.toHaveBeenCalled();
+  });
+
+  test("still redirects a real short code", async () => {
+    getLongUrl.mockResolvedValue({
+      ok: true,
+      url: { long_url: "https://example.com" },
+    });
+
+    const response = await fetch(`${baseUrl}/abc123`, {
+      redirect: "manual",
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("https://example.com");
+    expect(getLongUrl).toHaveBeenCalledWith("abc123", expect.any(Object));
   });
 });

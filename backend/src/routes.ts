@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { UrlController } from "./controllers/url.controller";
+import { RESERVED_ALIASES } from "./config/aliases";
 import { prismaLinkStore } from "./data/prisma-link-store";
 import { UrlService } from "./services/url.service";
 
@@ -14,7 +15,17 @@ export class AppRoutes {
     router.post("/api/url/batch-stats", urlController.getBatchStats);
     router.get("/api/url/:shortUrl/stats", urlController.getLinkStats);
     router.get("/api/alias/:alias/available", urlController.checkAlias);
-    router.get("/:shortUrl", urlController.getUrl);
+    router.get(
+      "/:shortUrl",
+      (req, _res, next) => {
+        const { shortUrl } = req.params;
+        if (typeof shortUrl === "string" && RESERVED_ALIASES.has(shortUrl.toLowerCase())) {
+          return next("route");
+        }
+        next();
+      },
+      urlController.getUrl,
+    );
     return router;
   }
 }
