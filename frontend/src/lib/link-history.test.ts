@@ -96,8 +96,16 @@ describe("link-history", () => {
     localStorage.setItem(
       "bjurl:links",
       JSON.stringify([
-        { shortUrl: "https://bjurl.test/one", originalUrl: "https://one.com" },
-        { shortUrl: "https://bjurl.test/two", originalUrl: "https://two.com" },
+        {
+          shortUrl: "https://bjurl.test/one",
+          originalUrl: "https://one.com",
+          createdAt: "2026-09-01T10:00:00.000Z",
+        },
+        {
+          shortUrl: "https://bjurl.test/two",
+          originalUrl: "https://two.com",
+          createdAt: "2026-09-01T10:00:00.000Z",
+        },
       ]),
     );
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
