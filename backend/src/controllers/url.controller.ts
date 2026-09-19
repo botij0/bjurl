@@ -50,7 +50,7 @@ export class UrlController {
   };
 
   public createUrl = async (req: Request, res: Response) => {
-    const [error, createUrlDto] = CreateUrlDto.create(req.body);
+    const [error, createUrlDto] = CreateUrlDto.create(req.body ?? {});
     if (error) {
       this.logger.warn("Validation failed for create URL", { error, body: req.body });
       return res.status(400).json({ error });
