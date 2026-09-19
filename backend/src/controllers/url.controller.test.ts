@@ -366,14 +366,7 @@ describe("UrlController", () => {
       await controller.getLinkStats(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          shortUrl: "abc",
-          originalUrl: "https://example.com",
-          totalClicks: 3,
-          uniqueClicks: 2,
-        }),
-      );
+      expect(res.json).toHaveBeenCalledWith(stats);
     });
   });
 

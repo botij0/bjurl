@@ -309,7 +309,10 @@ describe("the create endpoint without a body", () => {
   });
 
   test("does not create a link when the JSON body is missing", async () => {
-    await fetch(`${baseUrl}/api/url`, { method: "POST" });
+    expect(await postRaw()).toEqual({
+      status: 400,
+      body: { error: "Long Url is required" },
+    });
 
     expect(prisma.url.findUnique).not.toHaveBeenCalled();
     expect(prisma.url.create).not.toHaveBeenCalled();
