@@ -8,6 +8,15 @@ interface Options {
   port: number;
   routes: Router;
   publicPath: string;
+  corsOrigin: string;
+}
+
+export function parseCorsOrigin(corsOrigin: string): "*" | string[] {
+  if (corsOrigin.trim() === "*") return "*";
+  return corsOrigin
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 export class Server {
@@ -15,13 +24,15 @@ export class Server {
   private readonly port: number;
   private readonly routes: Router;
   private readonly publicPath: string;
+  private readonly corsOrigin: string;
   private readonly logger = buildLogger("server");
 
   constructor(options: Options) {
-    const { port, routes, publicPath } = options;
+    const { port, routes, publicPath, corsOrigin } = options;
     this.port = port;
     this.routes = routes;
     this.publicPath = publicPath;
+    this.corsOrigin = corsOrigin;
   }
 
   async start() {
@@ -29,7 +40,13 @@ export class Server {
     this.app.set("trust proxy", 1);
     this.app.use(express.json());
     this.app.use(express.urlencoded({ extended: true }));
-    this.app.use(cors());
+    // CORS_ORIGIN is "*" by default because this is a public shortener.
+    // Set it to a comma-separated allow-list to restrict cross-origin callers.
+    this.app.use(
+      cors({
+        origin: parseCorsOrigin(this.corsOrigin),
+      }),
+    );
 
     // Public path
     this.app.use(express.static(this.publicPath));

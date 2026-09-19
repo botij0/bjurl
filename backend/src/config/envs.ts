@@ -17,4 +17,5 @@ export const envs = {
   POSTGRES_URL: get("POSTGRES_URL").required().asString(),
   BASE_URL: get("BASE_URL").required().asString(),
   IP_HASH_SALT: ipHashSalt,
+  CORS_ORIGIN: get("CORS_ORIGIN").default("*").asString(),
 };
