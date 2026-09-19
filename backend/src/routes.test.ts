@@ -12,6 +12,7 @@ jest.mock("./data/postgres", () => ({
   prisma: {
     url: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -77,6 +78,7 @@ describe("the alias verdict over the HTTP seam", () => {
 
   test("answers free when the alias is unused", async () => {
     (prisma.url.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.url.findFirst as jest.Mock).mockResolvedValue(null);
 
     expect(await answer("promo")).toEqual({
       status: 200,
@@ -90,6 +92,20 @@ describe("the alias verdict over the HTTP seam", () => {
     expect(await answer("promo")).toEqual({
       status: 200,
       body: { available: false, reason: "taken" },
+    });
+  });
+
+  test("answers the availability question case-insensitively", async () => {
+    (prisma.url.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.url.findFirst as jest.Mock).mockResolvedValue(null);
+
+    expect(await answer("Promo")).toEqual({
+      status: 200,
+      body: { available: true, reason: null },
+    });
+    expect(prisma.url.findUnique).toHaveBeenCalledWith({
+      where: { short_url: "promo" },
+      select: { id: true },
     });
   });
 

@@ -4,7 +4,11 @@ import type { ClickContext, UrlService } from "../services/url.service";
 import { CreateUrlDto } from "../data/dtos/create-url.dto";
 import { buildLogger } from "../config/logger";
 import { envs } from "../config/envs";
-import { getAliasRejection, getAliasVerdict } from "../config/aliases";
+import {
+  getAliasRejection,
+  getAliasVerdict,
+  normalizeAlias,
+} from "../config/aliases";
 
 const MAX_BATCH_SIZE = 100;
 
@@ -56,11 +60,15 @@ export class UrlController {
       return res.status(400).json({ error });
     }
 
-    if (createUrlDto!.custom_alias) {
-      const verdict = getAliasVerdict(createUrlDto!.custom_alias, false);
+    const customAlias = createUrlDto!.custom_alias
+      ? normalizeAlias(createUrlDto!.custom_alias)
+      : undefined;
+
+    if (customAlias) {
+      const verdict = getAliasVerdict(customAlias, false);
       if (verdict !== "free") {
         this.logger.warn("Alias refused", {
-          customAlias: createUrlDto!.custom_alias,
+          customAlias,
           verdict,
         });
         return res.status(400).json({ reason: verdict });
@@ -68,7 +76,7 @@ export class UrlController {
     }
 
     const result = await this.urlService.createShortUrl(createUrlDto!.long_url, {
-      customAlias: createUrlDto!.custom_alias,
+      customAlias,
       expiresAt: createUrlDto!.expires_at,
       maxClicks: createUrlDto!.max_clicks,
     });
@@ -107,7 +115,13 @@ export class UrlController {
       return res.status(400).json({ error: "Wrong Short Url" });
     }
 
-    const stats = await this.urlService.getLinkStats(shortUrl);
+    let stats;
+    try {
+      stats = await this.urlService.getLinkStats(shortUrl);
+    } catch (error) {
+      this.logger.error("Failed to load link stats", { shortUrl, error });
+      return res.status(500).json({ error: "Something went wrong getting stats" });
+    }
 
     if (!stats) {
       this.logger.warn("Short URL not found for stats", { shortUrl });
@@ -132,6 +146,14 @@ export class UrlController {
     }
 
     const links = await this.urlService.getStatsByShortUrls(shortUrls);
+
+    if (links === null) {
+      this.logger.error("Failed to load batch stats", { shortUrls });
+      return res.status(500).json({
+        error: "Something went wrong getting the click counts",
+      });
+    }
+
     return res.status(200).json({ links });
   };
 
@@ -142,8 +164,11 @@ export class UrlController {
       return res.status(400).json({ error: "Wrong alias" });
     }
 
-    const rejection = getAliasRejection(alias);
-    const available = rejection ? false : await this.urlService.isAliasAvailable(alias);
+    const normalizedAlias = normalizeAlias(alias);
+    const rejection = getAliasRejection(normalizedAlias);
+    const available = rejection
+      ? false
+      : await this.urlService.isAliasAvailable(normalizedAlias);
 
     if (available === null) {
       return res
@@ -151,7 +176,7 @@ export class UrlController {
         .json({ error: "Something went wrong checking the alias" });
     }
 
-    const verdict = getAliasVerdict(alias, !available);
+    const verdict = getAliasVerdict(normalizedAlias, !available);
 
     return res.status(200).json({
       available: verdict === "free",
@@ -164,7 +189,9 @@ export class UrlController {
       referrer: req.get("referer") ?? undefined,
       userAgent: req.get("user-agent") ?? undefined,
       ip: req.ip ?? undefined,
-      country: req.get("cf-ipcountry") ?? undefined,
+      country: envs.TRUST_CF_IPCOUNTRY
+        ? (req.get("cf-ipcountry") ?? undefined)
+        : undefined,
     };
   }
 }

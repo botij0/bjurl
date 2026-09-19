@@ -15,6 +15,8 @@ export const RESERVED_ALIASES = new Set([
 
 export type AliasVerdict = "invalid" | "reserved" | "taken" | "free";
 
+export const normalizeAlias = (alias: string): string => alias.toLowerCase();
+
 export const getAliasRejection = (
   alias: string,
 ): Exclude<AliasVerdict, "taken" | "free"> | null => {

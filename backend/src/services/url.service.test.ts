@@ -113,6 +113,17 @@ describe("UrlService", () => {
       ]);
     });
 
+    test("should drop an invalid country instead of storing it", async () => {
+      const link = await seed("abc123");
+
+      await service.getLongUrl("abc123", { ...clickContext, country: "e1" });
+      await flush();
+
+      expect(await store.clicksFor(link.id)).toEqual([
+        expect.objectContaining({ country: null }),
+      ]);
+    });
+
     test("should not fail the redirect when click storage fails", async () => {
       await seed("abc123");
       jest.spyOn(store, "recordClick").mockRejectedValue(new Error("DB error"));
@@ -137,6 +148,15 @@ describe("UrlService", () => {
         reason: "error",
       });
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    test("should resolve a lowercase alias however it is cased", async () => {
+      await seed("promo");
+
+      expect(await service.getLongUrl("Promo")).toEqual({
+        ok: true,
+        url: expect.objectContaining({ short_url: "promo", counter: 1 }),
+      });
     });
   });
 
@@ -324,10 +344,10 @@ describe("UrlService", () => {
       expect(result!.clicksByDay).toEqual([]);
     });
 
-    test("should return null if error occurs", async () => {
+    test("should throw when the store fails so the controller can answer 500", async () => {
       jest.spyOn(store, "findByCode").mockRejectedValue(new Error("DB error"));
 
-      expect(await service.getLinkStats("abc123")).toBeNull();
+      await expect(service.getLinkStats("abc123")).rejects.toThrow("DB error");
       expect(mockLogger.error).toHaveBeenCalled();
     });
   });
@@ -366,13 +386,22 @@ describe("UrlService", () => {
       );
     });
 
-    test("should return an empty array if error occurs", async () => {
+    test("should return null if error occurs", async () => {
       jest
         .spyOn(store, "findManyByCodes")
         .mockRejectedValue(new Error("DB error"));
 
-      expect(await service.getStatsByShortUrls(["abc"])).toEqual([]);
+      expect(await service.getStatsByShortUrls(["abc"])).toBeNull();
       expect(mockLogger.error).toHaveBeenCalled();
+    });
+
+    test("should resolve a cased alias the way single stats do", async () => {
+      const promo = await seed("promo");
+
+      expect(await service.getStatsByShortUrls(["Promo"])).toEqual([
+        expect.objectContaining({ shortUrl: "promo" }),
+      ]);
+      expect(promo.short_url).toBe("promo");
     });
   });
 
@@ -383,6 +412,12 @@ describe("UrlService", () => {
 
     test("should return false when the alias is taken", async () => {
       await seed("promo");
+
+      expect(await service.isAliasAvailable("promo")).toBe(false);
+    });
+
+    test("should catch a stored mixed-case alias", async () => {
+      await seed("Promo");
 
       expect(await service.isAliasAvailable("promo")).toBe(false);
     });

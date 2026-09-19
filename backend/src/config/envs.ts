@@ -17,4 +17,5 @@ export const envs = {
   POSTGRES_URL: get("POSTGRES_URL").required().asString(),
   BASE_URL: get("BASE_URL").required().asString(),
   IP_HASH_SALT: ipHashSalt,
+  TRUST_CF_IPCOUNTRY: get("TRUST_CF_IPCOUNTRY").default("false").asBool(),
 };
