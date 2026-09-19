@@ -25,6 +25,7 @@ const fakeClient = () => ({
     updateMany: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
     findMany: jest.fn(),
     count: jest.fn(),
     aggregate: jest.fn(),
@@ -35,7 +36,6 @@ const fakeClient = () => ({
     count: jest.fn(),
     groupBy: jest.fn(),
   },
-  $transaction: jest.fn(),
 });
 
 describe("PrismaLinkStore", () => {
@@ -44,9 +44,6 @@ describe("PrismaLinkStore", () => {
 
   beforeEach(() => {
     client = fakeClient();
-    client.$transaction.mockImplementation((callback: (tx: unknown) => unknown) =>
-      callback(client),
-    );
     store = new PrismaLinkStore(client as unknown as PrismaClient);
   });
 
@@ -154,13 +151,12 @@ describe("PrismaLinkStore", () => {
   describe("insertLink", () => {
     const input = { long_url: "https://example.com", custom_alias: true };
 
-    test("should insert and assign the first candidate in one transaction", async () => {
+    test("should insert and assign the first candidate with a standalone update", async () => {
       client.url.create.mockResolvedValue({ ...link, short_url: null });
       client.url.update.mockResolvedValue(link);
 
       const created = await store.insertLink(input, (id) => [`code-${id}`]);
 
-      expect(client.$transaction).toHaveBeenCalledTimes(1);
       expect(client.url.create).toHaveBeenCalledWith({
         data: {
           long_url: "https://example.com",
@@ -173,6 +169,7 @@ describe("PrismaLinkStore", () => {
         where: { id: 1n },
         data: { short_url: "code-1" },
       });
+      expect(client.url.delete).not.toHaveBeenCalled();
       expect(created).toBe(link);
     });
 
@@ -185,16 +182,18 @@ describe("PrismaLinkStore", () => {
       const created = await store.insertLink(input, () => ["first", "second"]);
 
       expect(client.url.update).toHaveBeenCalledTimes(2);
+      expect(client.url.delete).not.toHaveBeenCalled();
       expect(created.short_url).toBe("second");
     });
 
-    test("should report a code conflict when every candidate is in use", async () => {
+    test("should report a code conflict and delete the orphan when every candidate is in use", async () => {
       client.url.create.mockResolvedValue({ ...link, short_url: null });
       client.url.update.mockRejectedValue(uniqueViolation);
 
       await expect(
         store.insertLink(input, () => ["first", "second"]),
       ).rejects.toThrow(LinkCodeConflictError);
+      expect(client.url.delete).toHaveBeenCalledWith({ where: { id: 1n } });
     });
 
     test("should let a non-conflict error through untouched", async () => {
@@ -204,6 +203,7 @@ describe("PrismaLinkStore", () => {
       await expect(store.insertLink(input, () => ["first"])).rejects.toThrow(
         "connection reset",
       );
+      expect(client.url.delete).toHaveBeenCalledWith({ where: { id: 1n } });
     });
   });
 

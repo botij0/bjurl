@@ -62,31 +62,33 @@ export class PrismaLinkStore implements LinkStore {
     input: NewLink,
     candidates: CodeCandidates,
   ): Promise<LinkRecord> {
-    return this.client.$transaction(async (tx) => {
-      const record = await tx.url.create({
-        data: {
-          long_url: input.long_url,
-          custom_alias: input.custom_alias,
-          expires_at: input.expires_at,
-          max_clicks: input.max_clicks,
-        },
-      });
+    const record = await this.client.url.create({
+      data: {
+        long_url: input.long_url,
+        custom_alias: input.custom_alias,
+        expires_at: input.expires_at,
+        max_clicks: input.max_clicks,
+      },
+    });
 
-      for (const candidate of candidates(record.id)) {
-        try {
-          return await tx.url.update({
-            where: { id: record.id },
-            data: { short_url: candidate },
-          });
-        } catch (error) {
-          if (!isUniqueViolation(error)) throw error;
+    for (const candidate of candidates(record.id)) {
+      try {
+        return await this.client.url.update({
+          where: { id: record.id },
+          data: { short_url: candidate },
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) {
+          await this.client.url.delete({ where: { id: record.id } });
+          throw error;
         }
       }
+    }
 
-      throw new LinkCodeConflictError(
-        `Every candidate code for link ${record.id} is already in use`,
-      );
-    });
+    await this.client.url.delete({ where: { id: record.id } });
+    throw new LinkCodeConflictError(
+      `Every candidate code for link ${record.id} is already in use`,
+    );
   }
 
   public async findManyByCodes(codes: string[]): Promise<LinkRecord[]> {
