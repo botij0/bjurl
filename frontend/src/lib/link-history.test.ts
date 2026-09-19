@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
   addLinkToHistory,
@@ -10,6 +10,10 @@ import {
 describe("link-history", () => {
   beforeEach(() => {
     localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test("should return an empty list when there is no history", () => {
@@ -72,5 +76,45 @@ describe("link-history", () => {
     localStorage.setItem("bjurl:links", "not-json");
 
     expect(getLinkHistory()).toEqual([]);
+  });
+
+  test("should return the new link when storage rejects the write", () => {
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+
+    const entries = addLinkToHistory({
+      shortUrl: "https://bjurl.test/abc",
+      originalUrl: "https://example.com",
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].shortUrl).toBe("https://bjurl.test/abc");
+  });
+
+  test("should return the remaining links when storage rejects the write on remove", () => {
+    localStorage.setItem(
+      "bjurl:links",
+      JSON.stringify([
+        { shortUrl: "https://bjurl.test/one", originalUrl: "https://one.com" },
+        { shortUrl: "https://bjurl.test/two", originalUrl: "https://two.com" },
+      ]),
+    );
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("QuotaExceededError");
+    });
+
+    const entries = removeLinkFromHistory("https://bjurl.test/one");
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0].shortUrl).toBe("https://bjurl.test/two");
+  });
+
+  test("should not throw when clearing and storage is unavailable", () => {
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("SecurityError");
+    });
+
+    expect(() => clearLinkHistory()).not.toThrow();
   });
 });
