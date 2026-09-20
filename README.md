@@ -17,42 +17,35 @@ Url shortener fully functional with a modern, geometric design and tracking of s
 ## Contents
 
 - [Contents](#contents)
-- [Architecture](#architecture)
-- [Features](#features)
 - [Execution](#execution)
+  - [Prerequisites](#prerequisites)
   - [Environment variables](#environment-variables)
   - [Run App Docker Recommended](#run-app-docker-recommended)
   - [Run app Manual](#run-app-manual)
-
-## Architecture
-
-<img width="4320" height="2392" alt="image" src="https://github.com/user-attachments/assets/20467dfb-e18d-4245-a72e-2acc7bc71ab1" />
-
-
-## Features
-
-- Shorten URLs with generated base62 codes.
-- Custom aliases with live availability check.
-- Expiring links and one-time (single click) links.
-- QR code generation and download for every short link.
-- Per-link analytics: clicks over time, unique visitors, top referrers, devices and countries.
-- Anonymous link history stored in the browser (`/links`).
-- Global stats and a public per-link stats page (`/stats/:shortUrl`).
+  - [Tests](#tests)
+- [Architecture](#architecture)
+- [API overview](#api-overview)
+- [Project structure](#project-structure)
 
 ## Execution
 
 This section contains how to execute the application once you have cloned the repository.
 
+### Prerequisites
+
+- [Bun](https://bun.com/) (package manager used by both `backend/` and `frontend/`)
+- [Docker](https://www.docker.com/) (for the recommended run, or for the local Postgres container)
+
 ### Environment variables
 
-1. Copy the enviroment template of the `backend` folder:
+1. Copy the environment template of the `backend` folder:
 
 ```
 cd backend && cp .env.template .env
 ```
 
 > [!NOTE]
-> In the `template_secrets.env` file you can find the following variables:
+> In the `backend/.env.template` file you can find the following variables:
 >
 > - `PORT=3334`
 > - `PUBLIC_PATH=public`
@@ -62,25 +55,28 @@ cd backend && cp .env.template .env
 > - `POSTGRES_DB=URL`
 > - `POSTGRES_PORT=5432`
 > - `POSTGRES_PASSWORD=123456`
-> - `IP_HASH_SALT=change_me`
+> - `IP_HASH_SALT=REPLACE_WITH_RANDOM_SECRET` (generate one with `openssl rand -hex 32`; the app refuses to start with a placeholder value)
+> - `CORS_ORIGIN=*`
+>
+> `BASE_URL` is the public origin used to build the returned `shortUrl` (e.g. `https://bjurl.example.com`).
 
 > [!IMPORTANT]
-> `POSTGRES` variables need to be modified with your local databse or external database if you wish.
+> `POSTGRES_*` variables need to be modified with your local database or external database if you wish.
 
 ### Run App Docker Recommended
 
-There are two options avaliable. If you alredy have an external `PostgreSql` database, you can only execute the backend service with the `docker-compose.yml` inside the `backend/` folder:
+There are two options available. If you already have an external `PostgreSQL` database, you can only execute the backend service with the `docker-compose.yml` inside the `backend/` folder:
 
 ```
 cd backend && docker compose up -d
 ```
 
 > [!NOTE]
-> The frontend project is alredy built and inside the `public` folder of backend project.
+> The frontend project is already built and inside the `public` folder of the backend project.
 >
-> If you modified the frontend you will need to build it and move it to `backend/public` folder.
+> If you modified the frontend you will need to rebuild it (`cd frontend && bun install && bun run build`) and copy the output of `frontend/dist/` into the `backend/public/` folder before building the image.
 
-If you also need a local database you can run the `docker-compose.yml` at the root of the repository:
+If you also need a local database you can run the `docker-compose.yml` at the root of the repository (app + database):
 
 ```
 docker compose up -d
@@ -88,22 +84,66 @@ docker compose up -d
 
 ### Run app Manual
 
-For this project, I used the package manager of `bun` avilable on: [Bun](https://bun.com/)
-
-1. Have a PostgresSql database running or run the docker-compose.database.yml to run one container:
+1. Have a PostgreSQL database running or run the `docker-compose.database.yml` to run one container:
 
 ```
 docker compose -f docker-compose.database.yml up -d
 ```
 
-2. Install the backend dependencies:
+2. Configure `backend/.env` (see [Environment variables](#environment-variables)) and apply the database migrations:
 
 ```
-bun install
+cd backend && bun install && bunx prisma migrate deploy
 ```
 
 3. Run the backend project:
 
 ```
 bun run dev
+```
+
+4. Optional: run the frontend in dev mode (separate terminal). It talks to the backend via `VITE_API_URL` (`frontend/.env.template` → `frontend/.env`):
+
+```
+cd frontend && bun install && bun run dev
+```
+
+### Tests
+
+```
+cd backend && bun run test
+cd frontend && bun run test
+```
+
+## Architecture
+
+<img width="4320" height="2392" alt="image" src="https://github.com/user-attachments/assets/20467dfb-e18d-4245-a72e-2acc7bc71ab1" />
+
+## API overview
+
+| Method | Route                         | Description                                                               |
+| ------ | ----------------------------- | ------------------------------------------------------------------------- |
+| `POST` | `/api/url`                    | Create a short link (optional `custom_alias`, `expires_at`, `max_clicks`) |
+| `GET`  | `/:shortUrl`                  | Redirect (`302`), `404` unknown, `410` expired/spent                      |
+| `GET`  | `/api/alias/:alias/available` | Alias verdict: `invalid \| reserved \| taken \| free`                     |
+| `GET`  | `/api/url/:shortUrl/stats`    | Per-link analytics                                                        |
+| `POST` | `/api/url/batch-stats`        | Click counts for up to 100 codes (dashboard history)                      |
+| `GET`  | `/api/stats`                  | Global `{ urls, clicks }`                                                 |
+
+Frontend routes: `/` (shortener), `/links` (browser-local history, `localStorage: bjurl:links`), `/stats/:shortUrl` (public stats page).
+
+Alias rules: 3–30 chars of letters, numbers, `-`/`_`, and not reserved (`api`, `stats`, `links`, `dashboard`, `admin`, `assets`, `static`, `healthz`, `favicon`, `robots`).
+
+## Project structure
+
+```
+backend/          Express + Prisma API, serves backend/public/
+  prisma/         schema + migrations (tables: url, click)
+  src/
+    routes.ts     route table
+    controllers/  HTTP layer (status codes, alias verdicts)
+    services/     UrlService: codes, redirects, click logging
+    data/         LinkStore (Prisma prod / InMemory tests)
+frontend/         React + Vite + Tailwind SPA
+  src/pages/      HomePage, LinksDashboard, LinkStatsPage
 ```
