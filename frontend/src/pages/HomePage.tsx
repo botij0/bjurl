@@ -25,9 +25,7 @@ export const HomePage = () => {
           <UrlShortenerForm />
         </div>
 
-        <div className="mx-auto w-full max-w-2xl">
-          <StatsBar />
-        </div>
+        <StatsBar />
       </main>
     </div>
   )

@@ -34,7 +34,7 @@ export const LinkOptionsPanel = ({
     outcome.state === "unavailable"
       ? "text-destructive"
       : outcome.state === "failed"
-        ? "text-amber-600"
+        ? "text-amber-600 dark:text-amber-400"
         : aliasAvailable
           ? "text-primary"
           : "text-muted-foreground";

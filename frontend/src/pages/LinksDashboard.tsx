@@ -156,7 +156,7 @@ export const LinksDashboard = () => {
         </header>
 
         {countsFailed && (
-          <p className="text-sm text-amber-600 rounded-lg border border-amber-600/30 bg-amber-600/5 px-4 py-3 mb-6">
+          <p className="text-sm text-amber-600 dark:text-amber-400 rounded-lg border border-amber-600/30 dark:border-amber-400/30 bg-amber-600/5 dark:bg-amber-400/10 px-4 py-3 mb-6">
             Could not load click counts. The figures below are the last known
             values.
           </p>

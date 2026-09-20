@@ -3,6 +3,14 @@ import { Link, NavLink } from "react-router"
 import ThemeToggle from "@/components/custom/ThemeToggle"
 import { cn } from "@/lib/utils"
 
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  cn(
+    "rounded-md px-3 py-1.5 text-sm transition-colors",
+    isActive
+      ? "text-foreground"
+      : "text-muted-foreground hover:text-foreground",
+  )
+
 export const AppHeader = () => {
   return (
     <header className="relative z-10 border-b border-border/70">
@@ -17,17 +25,10 @@ export const AppHeader = () => {
         </Link>
 
         <nav className="flex items-center gap-1">
-          <NavLink
-            to="/links"
-            className={({ isActive }) =>
-              cn(
-                "rounded-md px-3 py-1.5 text-sm transition-colors",
-                isActive
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )
-            }
-          >
+          <NavLink to="/" end className={navLinkClass}>
+            Home
+          </NavLink>
+          <NavLink to="/links" className={navLinkClass}>
             My links
           </NavLink>
           <ThemeToggle />
