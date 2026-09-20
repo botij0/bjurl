@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .mark {
+      fill: #008c41;
+      fill: oklch(0.55 0.17 155);
+    }
+    @media (prefers-color-scheme: dark) {
+      .mark {
+        fill: #2bbb71;
+        fill: oklch(0.7 0.16 155);
+      }
+    }
+  </style>
+  <!-- Brand diamond (matches the AppHeader logo mark) split by a
+       horizontal negative-space cut: two halves of a link. -->
+  <path
+    class="mark"
+    d="M32 5 L56.5 29.5 L7.5 29.5 Z M56.5 34.5 L32 59 L7.5 34.5 Z"
+  />
+</svg>
