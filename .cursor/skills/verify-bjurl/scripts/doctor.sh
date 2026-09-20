@@ -28,7 +28,7 @@ assert isinstance(body.get("clicks"), int)
 PY
 
 curl -sf "$API_ORIGIN/" | grep -q 'id="root"' || fail "GET $API_ORIGIN/ is not the built SPA (unexpected, API still ok)"
-# Built public/ hardcodes localhost:3334. Doctor records that but does not fail: UI proof uses Vite.
+# Built public/ talks to same-origin /api. UI proof still uses Vite.
 curl -sf "$UI_ORIGIN/" | grep -q 'id="root"' || fail "GET $UI_ORIGIN/ missing #root"
 curl -sf "$UI_ORIGIN/" | grep -q '<title>bjurl</title>' || true
 

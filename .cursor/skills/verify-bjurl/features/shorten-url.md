@@ -32,7 +32,7 @@ Preconditions:
 
 ## Gotchas
 
-- `backend/public` axios is baked to `http://localhost:3334`. A browser on `API_ORIGIN/` talks to 3334, not this run. Use `UI_ORIGIN` for UI steps.
+- Use `UI_ORIGIN` for UI steps. Vite is started with `VITE_API_URL=$API_ORIGIN` so the form talks to this run, not a leftover local server.
 - `drive-shorten.sh` already issues the 302, so `totalClicks` is at least 1 afterward. Do not expect 0.
 - Home `Links Shortened` stays hidden while `urls` is 0. Prove the first create from JSON or from the result card, not from that bar.
 - Client-side `isValidUrl` only checks `new URL()`. The API also requires http/https once that allowlist is on the branch you are verifying.

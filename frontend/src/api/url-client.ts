@@ -100,8 +100,20 @@ export const createUrlClient = (client: AxiosInstance) => {
 
 export type UrlClient = ReturnType<typeof createUrlClient>;
 
+export const resolveApiBaseUrl = (
+  viteApiUrl: string | undefined,
+  isProd: boolean,
+): string => {
+  if (isProd) return "/api";
+
+  const origin = viteApiUrl?.trim();
+  if (!origin) return "/api";
+
+  return `${origin.replace(/\/$/, "")}/api`;
+};
+
 export const urlApi = axios.create({
-  baseURL: `${import.meta.env.VITE_API_URL}/api`,
+  baseURL: resolveApiBaseUrl(import.meta.env.VITE_API_URL, import.meta.env.PROD),
 });
 
 export const urlClient = createUrlClient(urlApi);

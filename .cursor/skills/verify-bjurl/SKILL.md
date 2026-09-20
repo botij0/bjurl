@@ -29,7 +29,7 @@ That script starts three processes this run owns:
 
 Ready output prints `VERIFY_RUN_ID`, `API_ORIGIN`, and `UI_ORIGIN`. Metadata lives in `.cursor/skills/verify-bjurl/runs/$VERIFY_RUN_ID/meta.env`. Logs are `backend.log` and `vite.log` in that directory.
 
-The copy of `backend/public/` that Express serves is a production build whose axios `baseURL` is baked as `http://localhost:3334`. Do not use that origin for UI proof. Drive the UI at the Vite origin.
+The copy of `backend/public/` that Express serves talks to same-origin `/api`. Drive the UI at the Vite origin anyway so this run's `VITE_API_URL` can point at `API_ORIGIN` without a rebuild.
 
 Defaults refuse to start when 3340, 5179, or 55432 are bound, or when a previous verify pid is still alive. Override with `VERIFY_API_PORT`, `VERIFY_UI_PORT`, `VERIFY_PG_PORT`, `VERIFY_RUN_ID`.
 

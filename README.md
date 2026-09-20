@@ -106,7 +106,7 @@ cd backend && bun install && bunx prisma migrate deploy
 bun run dev
 ```
 
-4. Optional: run the frontend in dev mode (separate terminal). It talks to the backend via `VITE_API_URL` (`frontend/.env.template` → `frontend/.env`):
+4. Optional: run the frontend in dev mode (separate terminal). Vite talks to Express via `VITE_API_URL` (`frontend/.env.development`). Production builds served from Express call same-origin `/api` and do not use that variable.
 
 ```
 cd frontend && bun install && bun run dev

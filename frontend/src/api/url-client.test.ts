@@ -2,9 +2,7 @@ import axios from "axios";
 import AxiosMockAdapter from "axios-mock-adapter";
 import { beforeEach, describe, expect, test } from "vitest";
 
-import { createUrlClient, urlApi } from "./url-client";
-
-const BASE_URL = import.meta.env.VITE_API_URL;
+import { createUrlClient, resolveApiBaseUrl } from "./url-client";
 
 const instance = axios.create();
 const mock = new AxiosMockAdapter(instance);
@@ -15,10 +13,24 @@ const created = {
   shortUrl: "https://bjurl.test/t",
 };
 
-describe("urlApi", () => {
-  test("should be configured pointing to the testing server", () => {
-    expect(BASE_URL).toBeDefined();
-    expect(urlApi.defaults.baseURL).toBe(`${BASE_URL}/api`);
+describe("resolveApiBaseUrl", () => {
+  test("should use same-origin /api in production", () => {
+    expect(resolveApiBaseUrl("http://localhost:3334", true)).toBe("/api");
+  });
+
+  test("should use same-origin /api when no origin is set", () => {
+    expect(resolveApiBaseUrl(undefined, false)).toBe("/api");
+    expect(resolveApiBaseUrl("", false)).toBe("/api");
+    expect(resolveApiBaseUrl("   ", false)).toBe("/api");
+  });
+
+  test("should join a dev origin to /api", () => {
+    expect(resolveApiBaseUrl("http://localhost:3334", false)).toBe(
+      "http://localhost:3334/api",
+    );
+    expect(resolveApiBaseUrl("http://localhost:3334/", false)).toBe(
+      "http://localhost:3334/api",
+    );
   });
 });
 
