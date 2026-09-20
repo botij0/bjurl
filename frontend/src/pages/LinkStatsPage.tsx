@@ -86,10 +86,12 @@ const BreakdownList = ({
                 </span>
                 <span className="text-muted-foreground tabular-nums">{item.count}</span>
               </div>
-              <div
-                className="h-1 mt-1.5 rounded-full bg-primary"
-                style={{ width: `${(item.count / max) * 100}%` }}
-              />
+              <div className="h-1 mt-1.5 rounded-full bg-secondary overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary"
+                  style={{ width: `${(item.count / max) * 100}%` }}
+                />
+              </div>
             </li>
           ))}
         </ul>
@@ -99,18 +101,21 @@ const BreakdownList = ({
 };
 
 const LoadingSkeleton = () => (
-  <div className="animate-pulse" aria-hidden>
-    <div className="h-9 w-56 rounded bg-secondary" />
-    <div className="mt-3 h-4 w-72 max-w-full rounded bg-secondary" />
-    <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
-      {[0, 1, 2, 3].map((item) => (
-        <div key={item} className="space-y-2">
-          <div className="h-3 w-20 rounded bg-secondary" />
-          <div className="h-8 w-16 rounded bg-secondary" />
-        </div>
-      ))}
+  <div role="status">
+    <span className="sr-only">Loading analytics...</span>
+    <div className="animate-pulse" aria-hidden>
+      <div className="h-9 w-56 rounded bg-secondary" />
+      <div className="mt-3 h-4 w-72 max-w-full rounded bg-secondary" />
+      <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
+        {[0, 1, 2, 3].map((item) => (
+          <div key={item} className="space-y-2">
+            <div className="h-3 w-20 rounded bg-secondary" />
+            <div className="h-8 w-16 rounded bg-secondary" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-10 h-72 rounded-xl bg-secondary" />
     </div>
-    <div className="mt-10 h-72 rounded-xl bg-secondary" />
   </div>
 );
 

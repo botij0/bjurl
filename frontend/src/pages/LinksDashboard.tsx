@@ -69,17 +69,20 @@ const CopyButton = ({ value }: { value: string }) => {
 };
 
 const SkeletonRows = () => (
-  <ul className="divide-y divide-border/70" aria-hidden>
-    {[0, 1, 2].map((row) => (
-      <li key={row} className="flex items-center gap-4 py-5 animate-pulse">
-        <div className="flex-1 space-y-2">
-          <div className="h-4 w-48 max-w-full rounded bg-secondary" />
-          <div className="h-3 w-72 max-w-full rounded bg-secondary" />
-        </div>
-        <div className="h-8 w-12 rounded bg-secondary" />
-      </li>
-    ))}
-  </ul>
+  <div role="status">
+    <span className="sr-only">Loading your links...</span>
+    <ul className="space-y-3" aria-hidden>
+      {[0, 1, 2].map((row) => (
+        <li key={row} className="flex items-center gap-4 py-5 animate-pulse">
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-48 max-w-full rounded bg-secondary" />
+            <div className="h-3 w-72 max-w-full rounded bg-secondary" />
+          </div>
+          <div className="h-8 w-12 rounded bg-secondary" />
+        </li>
+      ))}
+    </ul>
+  </div>
 );
 
 export const LinksDashboard = () => {
@@ -173,7 +176,7 @@ export const LinksDashboard = () => {
             </Button>
           </div>
         ) : (
-          <ul className="divide-y divide-border/70">
+          <ul className="space-y-3">
             {entries.map((entry) => {
               const code = getShortCode(entry.shortUrl);
               const summary = summaries?.[code];
@@ -186,7 +189,7 @@ export const LinksDashboard = () => {
               return (
                 <li
                   key={entry.shortUrl}
-                  className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 bg-card border border-primary/15 rounded-xl"
+                  className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 bg-card border border-border rounded-xl"
                 >
                   <div className="flex-1 min-w-0">
                     <a
