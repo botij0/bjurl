@@ -99,7 +99,7 @@ export const UrlShortenerForm = () => {
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
+    <div className="w-full max-w-2xl">
       <div className="flex gap-3 flex-col sm:flex-row">
         <div className="relative flex-1 space-y-1.5">
           <Link2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
@@ -109,14 +109,14 @@ export const UrlShortenerForm = () => {
             ref={inputRef}
             onKeyDown={handleKeyDown}
             onChange={() => setError("")}
-            className="pl-12 h-14 bg-secondary border-primary/50 text-foreground placeholder:text-muted-foreground font-mono text-sm focus-visible:ring-primary/50 focus-visible:border-primary/80 rounded-lg"
+            className="pl-12 h-14 bg-card border-border text-foreground placeholder:text-muted-foreground font-mono text-sm rounded-lg"
           />
         </div>
 
         <Button
           onClick={handleShortenUrl}
           disabled={loading}
-          className="h-14 px-8 glow-border border dark:border-accent/30 transition-all duration-300 dark:text-secondary-foreground dark:bg-background"
+          className="h-14 px-8 rounded-lg active:translate-y-px"
         >
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
@@ -142,7 +142,7 @@ export const UrlShortenerForm = () => {
       />
 
       {error && (
-        <p className="text-sm text-red-500 font-medium mt-2" role="alert">
+        <p className="text-sm text-destructive font-medium mt-2" role="alert">
           {error}
         </p>
       )}

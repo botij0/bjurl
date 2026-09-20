@@ -19,8 +19,8 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Space Grotesk", "sans-serif"],
-        mono: ["JetBrains Mono", "monospace"],
+        sans: ["Space Grotesk Variable", "Space Grotesk", "sans-serif"],
+        mono: ["JetBrains Mono Variable", "JetBrains Mono", "monospace"],
       },
       colors: {
         border: "var(--border)",

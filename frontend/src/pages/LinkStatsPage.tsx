@@ -10,18 +10,17 @@ import {
   YAxis,
 } from "recharts";
 import {
-  ArrowLeft,
+  Activity,
   CalendarClock,
   ExternalLink,
   Globe,
-  Loader2,
   MonitorSmartphone,
   MousePointerClick,
   Users,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import ThemeToggle from "@/components/custom/ThemeToggle";
+import { AppHeader } from "@/components/custom/AppHeader";
 import { getLinkStats } from "@/api/url-client";
 import { getShortCode } from "@/lib/short-code";
 import { formatDateTime } from "@/lib/format";
@@ -35,7 +34,7 @@ interface BreakdownItem {
   count: number;
 }
 
-const StatCard = ({
+const StatItem = ({
   label,
   value,
   icon,
@@ -44,12 +43,12 @@ const StatCard = ({
   value: string | number;
   icon: ReactNode;
 }) => (
-  <div className="p-5 rounded-xl bg-card border border-primary/15">
+  <div className="border-l-2 border-border pl-4 py-1">
     <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
       {icon}
       {label}
     </div>
-    <p className="text-3xl font-bold text-gradient mt-2 truncate" title={String(value)}>
+    <p className="text-2xl md:text-3xl font-bold tabular-nums mt-1.5 truncate" title={String(value)}>
       {value}
     </p>
   </div>
@@ -69,7 +68,7 @@ const BreakdownList = ({
   const max = Math.max(...items.map((item) => item.count), 1);
 
   return (
-    <div className="p-5 rounded-xl bg-card border border-primary/15">
+    <div className="p-5 rounded-xl bg-card border border-border">
       <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {icon}
         {title}
@@ -85,14 +84,12 @@ const BreakdownList = ({
                 <span className="truncate font-mono" title={item.label}>
                   {item.label}
                 </span>
-                <span className="text-muted-foreground">{item.count}</span>
+                <span className="text-muted-foreground tabular-nums">{item.count}</span>
               </div>
-              <div className="h-1.5 mt-1 rounded-full bg-secondary overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-linear-to-r from-primary to-accent"
-                  style={{ width: `${(item.count / max) * 100}%` }}
-                />
-              </div>
+              <div
+                className="h-1 mt-1.5 rounded-full bg-primary"
+                style={{ width: `${(item.count / max) * 100}%` }}
+              />
             </li>
           ))}
         </ul>
@@ -100,6 +97,22 @@ const BreakdownList = ({
     </div>
   );
 };
+
+const LoadingSkeleton = () => (
+  <div className="animate-pulse" aria-hidden>
+    <div className="h-9 w-56 rounded bg-secondary" />
+    <div className="mt-3 h-4 w-72 max-w-full rounded bg-secondary" />
+    <div className="mt-10 grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
+      {[0, 1, 2, 3].map((item) => (
+        <div key={item} className="space-y-2">
+          <div className="h-3 w-20 rounded bg-secondary" />
+          <div className="h-8 w-16 rounded bg-secondary" />
+        </div>
+      ))}
+    </div>
+    <div className="mt-10 h-72 rounded-xl bg-secondary" />
+  </div>
+);
 
 export const LinkStatsPage = () => {
   const { shortUrl = "" } = useParams();
@@ -139,29 +152,18 @@ export const LinkStatsPage = () => {
   const shortLink = historyEntry?.shortUrl ?? `/${shortUrl}`;
 
   return (
-    <div className="min-h-screen px-6 py-10 geometric-grid">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to shortener
-          </Link>
-          <ThemeToggle />
-        </div>
+    <div className="relative min-h-dvh">
+      <div aria-hidden className="pointer-events-none fixed inset-0 geometric-grid" />
+      <AppHeader />
 
+      <main className="relative mx-auto w-full max-w-5xl px-6 py-12">
         {outcome === null ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4 text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin" />
-            <p className="text-sm">Loading analytics...</p>
-          </div>
+          <LoadingSkeleton />
         ) : failed ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <h1 className="text-2xl font-bold">Could not load analytics</h1>
             <p className="text-sm text-muted-foreground max-w-md">
-              The link itself may work fine — this is only the analytics page
+              The link itself may work fine. This is only the analytics page
               failing to load.
             </p>
             <Link to={`/stats/${encodeURIComponent(shortUrl)}`} reloadDocument>
@@ -169,7 +171,7 @@ export const LinkStatsPage = () => {
             </Link>
           </div>
         ) : !stats ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <h1 className="text-2xl font-bold">Link not found</h1>
             <p className="text-sm text-muted-foreground font-mono">
               {shortUrl}
@@ -180,16 +182,16 @@ export const LinkStatsPage = () => {
           </div>
         ) : (
           <>
-            <header className="mt-8 mb-8">
+            <header className="mb-10">
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-                Link <span className="text-gradient">analytics</span>
+                Link analytics
               </h1>
               <div className="flex flex-col gap-1 mt-3 text-sm font-mono text-muted-foreground">
                 <a
                   href={shortLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:opacity-80 w-fit"
+                  className="inline-flex items-center gap-1 text-primary hover:underline w-fit"
                 >
                   {shortLink}
                   <ExternalLink className="w-3 h-3" />
@@ -200,37 +202,37 @@ export const LinkStatsPage = () => {
               </div>
             </header>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8">
+              <StatItem
                 label="Total clicks"
                 value={stats.totalClicks}
                 icon={<MousePointerClick className="w-3.5 h-3.5" />}
               />
-              <StatCard
+              <StatItem
                 label="Unique visitors"
                 value={stats.uniqueClicks}
                 icon={<Users className="w-3.5 h-3.5" />}
               />
-              <StatCard
+              <StatItem
                 label="Created"
                 value={formatDateTime(stats.createdAt)}
                 icon={<CalendarClock className="w-3.5 h-3.5" />}
               />
-              <StatCard
+              <StatItem
                 label="Status"
                 value={status.summary}
-                icon={<CalendarClock className="w-3.5 h-3.5" />}
+                icon={<Activity className="w-3.5 h-3.5" />}
               />
             </div>
 
-            <div className="mt-6 p-5 rounded-xl bg-card border border-primary/15">
+            <div className="mt-10 p-5 rounded-xl bg-card border border-border">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Clicks over time
               </h2>
               <div className="h-64 mt-4">
                 {stats.clicksByDay.length === 0 ? (
                   <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                    No clicks yet — share your link to see data here.
+                    No clicks yet. Share your link to see data here.
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
@@ -242,8 +244,8 @@ export const LinkStatsPage = () => {
                     >
                       <defs>
                         <linearGradient id="clicksFill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.5} />
-                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.05} />
+                          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.35} />
+                          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0.03} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -315,7 +317,7 @@ export const LinkStatsPage = () => {
             </div>
           </>
         )}
-      </div>
+      </main>
     </div>
   );
 };

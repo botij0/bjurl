@@ -1,19 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
-  ArrowLeft,
   BarChart3,
   Check,
   Copy,
   ExternalLink,
   Link2,
-  Loader2,
   TimerReset,
   Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import ThemeToggle from "@/components/custom/ThemeToggle";
+import { AppHeader } from "@/components/custom/AppHeader";
 import { getBatchStats } from "@/api/url-client";
 import { getShortCode } from "@/lib/short-code";
 import { formatDateTime } from "@/lib/format";
@@ -70,6 +68,20 @@ const CopyButton = ({ value }: { value: string }) => {
   );
 };
 
+const SkeletonRows = () => (
+  <ul className="divide-y divide-border/70" aria-hidden>
+    {[0, 1, 2].map((row) => (
+      <li key={row} className="flex items-center gap-4 py-5 animate-pulse">
+        <div className="flex-1 space-y-2">
+          <div className="h-4 w-48 max-w-full rounded bg-secondary" />
+          <div className="h-3 w-72 max-w-full rounded bg-secondary" />
+        </div>
+        <div className="h-8 w-12 rounded bg-secondary" />
+      </li>
+    ))}
+  </ul>
+);
+
 export const LinksDashboard = () => {
   const [entries, setEntries] = useState<HistoryEntry[]>(getLinkHistory);
   const [summaries, setSummaries] = useState<Record<string, LinkSummary> | null>(
@@ -117,23 +129,15 @@ export const LinksDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen px-6 py-10 geometric-grid">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to shortener
-          </Link>
-          <ThemeToggle />
-        </div>
+    <div className="relative min-h-[100dvh]">
+      <div aria-hidden className="pointer-events-none fixed inset-0 geometric-grid" />
+      <AppHeader />
 
-        <header className="flex flex-wrap items-end justify-between gap-4 mt-8 mb-8">
+      <main className="relative mx-auto w-full max-w-4xl px-6 py-12">
+        <header className="flex flex-wrap items-end justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">
-              My <span className="text-gradient">links</span>
+              My links
             </h1>
             <p className="text-sm text-muted-foreground mt-2">
               Links created from this browser, with live click counts.
@@ -149,19 +153,16 @@ export const LinksDashboard = () => {
         </header>
 
         {countsFailed && (
-          <p className="text-sm text-amber-600 mb-4">
-            Could not load click counts — the figures below are the last known
+          <p className="text-sm text-amber-600 rounded-lg border border-amber-600/30 bg-amber-600/5 px-4 py-3 mb-6">
+            Could not load click counts. The figures below are the last known
             values.
           </p>
         )}
 
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4 text-muted-foreground">
-            <Loader2 className="w-8 h-8 animate-spin" />
-            <p className="text-sm">Loading your links...</p>
-          </div>
+          <SkeletonRows />
         ) : entries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4 text-center">
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
             <Link2 className="w-10 h-10 text-muted-foreground" />
             <h2 className="text-xl font-semibold">No links yet</h2>
             <p className="text-sm text-muted-foreground">
@@ -172,7 +173,7 @@ export const LinksDashboard = () => {
             </Button>
           </div>
         ) : (
-          <ul className="space-y-3">
+          <ul className="divide-y divide-border/70">
             {entries.map((entry) => {
               const code = getShortCode(entry.shortUrl);
               const summary = summaries?.[code];
@@ -185,14 +186,14 @@ export const LinksDashboard = () => {
               return (
                 <li
                   key={entry.shortUrl}
-                  className="p-4 rounded-xl bg-card border border-primary/15 flex flex-col sm:flex-row sm:items-center gap-4"
+                  className="p-5 flex flex-col sm:flex-row sm:items-center gap-4 bg-card border border-primary/15 rounded-xl"
                 >
                   <div className="flex-1 min-w-0">
                     <a
                       href={entry.shortUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-mono text-sm font-semibold text-gradient hover:opacity-80"
+                      className="font-mono text-sm font-semibold hover:text-primary transition-colors"
                     >
                       {entry.shortUrl}
                     </a>
@@ -202,17 +203,17 @@ export const LinksDashboard = () => {
                     >
                       {entry.originalUrl}
                     </p>
-                    <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
                       <span>{formatDateTime(entry.createdAt)}</span>
                       {entry.expiresAt && (
-                        <span className={status.expired ? "text-red-500" : ""}>
+                        <span className={status.expired ? "text-destructive" : ""}>
                           {status.expired
                             ? "Expired"
                             : `Expires ${formatDateTime(entry.expiresAt)}`}
                         </span>
                       )}
                       {status.oneTime && (
-                        <span className="inline-flex items-center gap-1 text-accent">
+                        <span className="inline-flex items-center gap-1">
                           <TimerReset className="w-3 h-3" />
                           One-time
                         </span>
@@ -225,15 +226,15 @@ export const LinksDashboard = () => {
                           </span>
                         )}
                       {clicks !== undefined && status.consumed && !status.expired && (
-                        <span className="text-red-500">Limit reached</span>
+                        <span className="text-destructive">Limit reached</span>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    <div className="text-center px-3">
-                      <p className="text-xl font-bold text-gradient">
-                        {summary ? summary.totalClicks : "—"}
+                    <div className="text-right px-3">
+                      <p className="text-xl font-bold tabular-nums">
+                        {summary ? summary.totalClicks : "-"}
                       </p>
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                         Clicks
@@ -267,8 +268,9 @@ export const LinksDashboard = () => {
                       variant="ghost"
                       onClick={() => handleRemove(entry.shortUrl)}
                       aria-label="Remove from history"
+                      className="text-muted-foreground hover:text-destructive"
                     >
-                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </li>
@@ -276,7 +278,7 @@ export const LinksDashboard = () => {
             })}
           </ul>
         )}
-      </div>
+      </main>
     </div>
   );
 };
