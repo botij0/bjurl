@@ -49,21 +49,21 @@ export const ShortenedResult = ({
   const oneTime = status.oneTime;
 
   return (
-    <div className="mt-6 p-4 rounded-lg bg-secondary border border-primary/20 glow-border">
+    <div className="mt-6 p-5 rounded-xl bg-card border border-border animate-enter">
       <div className="flex items-center gap-3 flex-col sm:flex-row">
         <a
           href={shortUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm sm:text-lg font-semibold text-gradient font-mono flex-1 truncate hover:opacity-80 transition-opacity"
+          className="text-sm sm:text-base font-semibold font-mono flex-1 truncate hover:text-primary transition-colors"
         >
           {shortUrl}
         </a>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <Button
-            size="sm"
+            size="icon-sm"
             variant="outline"
-            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+            className="shrink-0"
             onClick={handleCopy}
             aria-label="Copy short URL"
           >
@@ -82,9 +82,9 @@ export const ShortenedResult = ({
           </span>
           <Button
             asChild
-            size="sm"
+            size="icon-sm"
             variant="outline"
-            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+            className="shrink-0"
           >
             <a
               href={shortUrl}
@@ -96,9 +96,9 @@ export const ShortenedResult = ({
             </a>
           </Button>
           <Button
-            size="sm"
+            size="icon-sm"
             variant="outline"
-            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+            className="shrink-0"
             onClick={() => setShowQr((value) => !value)}
             aria-label="Toggle QR code"
             aria-expanded={showQr}
@@ -107,9 +107,9 @@ export const ShortenedResult = ({
           </Button>
           <Button
             asChild
-            size="sm"
+            size="icon-sm"
             variant="outline"
-            className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 shrink-0"
+            className="shrink-0"
           >
             <Link
               to={`/stats/${encodeURIComponent(code)}`}
@@ -129,18 +129,18 @@ export const ShortenedResult = ({
             </span>
           )}
           {oneTime && (
-            <span className="text-xs px-2 py-1 rounded-full bg-accent/10 text-accent border border-accent/20 inline-flex items-center gap-1">
+            <span className="text-xs px-2 py-1 rounded-full bg-secondary text-muted-foreground border border-border inline-flex items-center gap-1">
               <TimerReset className="w-3 h-3" />
               One-time link
             </span>
           )}
           {!oneTime && maxClicks && (
-            <span className="text-xs px-2 py-1 rounded-full bg-accent/10 text-accent border border-accent/20">
+            <span className="text-xs px-2 py-1 rounded-full bg-secondary text-muted-foreground border border-border">
               {maxClicks} clicks max
             </span>
           )}
           {expiresLabel && (
-            <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground border border-border inline-flex items-center gap-1">
+            <span className="text-xs px-2 py-1 rounded-full bg-secondary text-muted-foreground border border-border inline-flex items-center gap-1">
               <CalendarClock className="w-3 h-3" />
               Expires {expiresLabel}
             </span>
@@ -148,7 +148,7 @@ export const ShortenedResult = ({
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground/70 font-mono truncate mt-5">
+      <p className="text-xs text-muted-foreground font-mono truncate mt-4">
         Original URL: {originalUrl}
       </p>
 

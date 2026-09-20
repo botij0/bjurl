@@ -32,9 +32,9 @@ export const LinkOptionsPanel = ({
   const aliasAvailable = outcome.state === "available";
   const aliasTone =
     outcome.state === "unavailable"
-      ? "text-red-500"
+      ? "text-destructive"
       : outcome.state === "failed"
-        ? "text-amber-600"
+        ? "text-amber-600 dark:text-amber-400"
         : aliasAvailable
           ? "text-primary"
           : "text-muted-foreground";
@@ -46,7 +46,7 @@ export const LinkOptionsPanel = ({
         onClick={onToggle}
         aria-expanded={open}
         aria-controls="link-options-panel"
-        className="inline-flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
       >
         <Settings2 className="w-3.5 h-3.5" />
         Options
@@ -58,7 +58,7 @@ export const LinkOptionsPanel = ({
       {open && (
         <div
           id="link-options-panel"
-          className="mt-3 p-4 rounded-lg bg-secondary/60 border border-primary/20 grid gap-4 sm:grid-cols-2"
+          className="mt-3 p-5 rounded-xl bg-card border border-border grid gap-5 sm:grid-cols-2"
         >
           <div className="space-y-1.5">
             <label
@@ -75,7 +75,7 @@ export const LinkOptionsPanel = ({
               placeholder="my-link"
               onChange={(event) => onCustomAliasChange(event.target.value)}
               aria-describedby="custom-alias-feedback"
-              className="font-mono text-sm bg-background border-primary/30"
+              className="font-mono text-sm bg-background"
             />
             <p
               id="custom-alias-feedback"
@@ -105,7 +105,7 @@ export const LinkOptionsPanel = ({
               onChange={(event) =>
                 onExpiryChange(event.target.value as ExpiryOption)
               }
-              className="h-9 w-full rounded-md border border-primary/30 bg-background px-3 text-sm font-mono outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm font-mono outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
             >
               {EXPIRY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>

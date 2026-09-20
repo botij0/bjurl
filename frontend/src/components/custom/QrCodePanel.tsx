@@ -37,17 +37,17 @@ export const QrCodePanel = ({ url }: { url: string }) => {
   return (
     <div className="mt-4 flex flex-col items-center gap-3">
       {failed ? (
-        <p className="text-sm text-red-500">
+        <p className="text-sm text-destructive">
           Could not generate the QR code, please try again
         </p>
       ) : dataUrl ? (
         <img
           src={dataUrl}
           alt={`QR code for ${url}`}
-          className="w-44 h-44 rounded-lg border border-primary/20 bg-white p-2"
+          className="w-44 h-44 rounded-lg border border-border bg-white p-2"
         />
       ) : (
-        <div className="w-44 h-44 rounded-lg border border-primary/20 bg-secondary animate-pulse" />
+        <div className="w-44 h-44 rounded-lg border border-border bg-secondary animate-pulse" />
       )}
 
       <Button
