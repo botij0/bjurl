@@ -1,0 +1,17 @@
+{
+  "name": "bjurl",
+  "user": "ubuntu",
+  "install": "./.cursor/install.sh",
+  "start": "./.cursor/start.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": "cd backend && bun run dev"
+    },
+    {
+      "name": "frontend",
+      "command": "cd frontend && bun run dev -- --host"
+    }
+  ],
+  "ports": [3334, 5173]
+}
